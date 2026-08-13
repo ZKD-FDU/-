@@ -1,0 +1,17 @@
+[project]
+name = "hongce"
+version = "0.0.1"
+description = "Multi-agent policy simulation for flood evacuation and resource allocation."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2",
+  "numpy",
+  "pandas",
+]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+

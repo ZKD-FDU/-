@@ -1,0 +1,16 @@
+services:
+  api:
+    build: .
+    command: python -m api.simple_server
+    ports:
+      - "8000:8000"
+    environment:
+      PYTHONPATH: /app/src
+  web:
+    image: python:3.12-slim
+    working_dir: /app/web
+    command: python -m http.server 5173 --bind 0.0.0.0
+    volumes:
+      - .:/app:ro
+    ports:
+      - "5173:5173"

@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev:api": "PYTHONPATH=src python3 -m api.simple_server",
+    "dev:web": "cd web && python3 -m http.server 5173 --bind 127.0.0.1",
+    "test:python": "PYTHONPATH=src python3 -m unittest discover -s tests -v",
+    "demo:run": "PYTHONPATH=src python3 -m hongce.cli run --policy S5 --seed 20260806 --population 500 --out-dir outputs/demo",
+    "demo:experiments": "PYTHONPATH=src python3 -m hongce.cli experiments --seeds 202608060:202608063 --population 500 --out-dir outputs/experiments"
+  }
+}

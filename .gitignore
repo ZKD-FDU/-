@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+
+# Local runtime outputs can be regenerated from CLI/API.
+outputs/
+
+# Local package artifacts.
+*.zip
+dist/
+build/
+*.egg-info/
+
+# Local environment files.
+.env
+.venv/
+venv/
+node_modules/

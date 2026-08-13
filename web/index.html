@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>洪策 | 多智能体政策推演</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-icon">HC</span>
+          <div><strong>洪策</strong><span>极端洪涝政策推演</span></div>
+        </div>
+        <nav id="tabs"></nav>
+        <div class="health"><span class="dot"></span><span id="health">API connecting</span></div>
+      </aside>
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <h1 id="page-title">县域态势总览</h1>
+            <p>所有指标由本地规则智能体仿真即时生成，离线可运行。</p>
+          </div>
+          <div class="controls">
+            <label>种子<input id="seed" value="20260806" type="number" /></label>
+            <label>人口<input id="population" min="50" max="5000" value="500" type="number" /></label>
+            <label>政策<select id="policy"></select></label>
+            <button class="primary" id="run">运行仿真</button>
+          </div>
+        </header>
+        <div class="notice" id="notice">启动 API 后点击运行，系统将生成新的仿真结果。</div>
+        <div id="content"></div>
+      </section>
+    </main>
+    <script src="./hongce-config.js"></script>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
