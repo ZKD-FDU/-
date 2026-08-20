@@ -138,12 +138,25 @@ label {
   font-size: 13px;
 }
 
+.live-value {
+  justify-self: end;
+  color: #1b6b6f;
+  font-weight: 700;
+  font-size: 13px;
+}
+
 input {
   border: 1px solid #c7d0d5;
   border-radius: 6px;
   padding: 9px 10px;
   background: white;
   min-width: 120px;
+}
+
+input[type="range"] {
+  min-width: 0;
+  padding: 0;
+  accent-color: #1b6b6f;
 }
 
 select {
@@ -212,6 +225,10 @@ button:disabled {
 
 .view.two {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.view.nested {
+  margin-top: 0;
 }
 
 section,
@@ -380,6 +397,95 @@ section {
   gap: 12px;
 }
 
+.case-tools {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.case-tools input {
+  min-width: 280px;
+}
+
+.case-tools span,
+.case-list small {
+  color: #5d6a70;
+  font-size: 13px;
+}
+
+.case-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr);
+  gap: 14px;
+}
+
+.case-list {
+  display: grid;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.case-list button {
+  border: 1px solid #cfd8dc;
+  background: #f9fbfb;
+  border-radius: 6px;
+  padding: 11px;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+}
+
+.case-list button.selected,
+.case-list button:hover {
+  border-color: #1b6b6f;
+  background: #eef8f7;
+}
+
+.case-list span {
+  line-height: 1.35;
+}
+
+.case-detail {
+  border: 1px solid #d9e0e3;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.case-detail h2 {
+  line-height: 1.35;
+}
+
+.tag-band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.tag-band span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #edf1f4;
+  color: #3c4a51;
+  font-size: 13px;
+}
+
+.tag-band.policy-tags span {
+  background: #e5f3f1;
+  color: #1b6b6f;
+  font-weight: 700;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -481,7 +587,8 @@ th {
 
   .topbar,
   .view.two,
-  .map-band {
+  .map-band,
+  .case-grid {
     grid-template-columns: 1fr;
     display: grid;
   }
@@ -505,5 +612,14 @@ th {
   .form-grid,
   nav {
     grid-template-columns: 1fr;
+  }
+
+  .case-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .case-tools input {
+    min-width: 0;
   }
 }

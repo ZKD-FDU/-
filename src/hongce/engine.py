@@ -86,7 +86,17 @@ def run_policy(
     resource_state = ResourceState.from_policy(scenario, policy)
     route_state = RouteState.from_policy(scenario, policy)
 
-    run_id = f"{policy.id.value.lower()}-{seed}-{stable_config_hash(policy)}"
+    scenario_signature = stable_config_hash(
+        {
+            "policy": policy.id.value,
+            "seed": seed,
+            "population": len(scenario.people),
+            "hazard": scenario.hazard.__dict__,
+            "resources": scenario.resources.__dict__,
+            "vulnerable_count": len(vulnerable_ids),
+        }
+    )
+    run_id = f"{policy.id.value.lower()}-{seed}-{scenario_signature}"
     run = SimulationRun(
         id=run_id,
         policy_id=policy.id,

@@ -16,6 +16,25 @@ const state = {
   run: null,
   experiment: null,
   trace: null,
+  cases: [],
+  selectedCase: null,
+  caseScenario: null,
+  scenarioConfig: {
+    vulnerable_ratio: 0.32,
+    timestep_minutes: 5,
+    warning_minute: 45,
+    evacuation_order_minute: 75,
+    bridge_closure_minute: 120,
+    danger_arrival_minute: 180,
+    communication_failure_minute: 90,
+    communication_failure_rate: 0.3,
+    vehicles: 18,
+    care_workers: 34,
+    stretchers: 18,
+    shelter_beds: 700,
+    key_breakpoints: "",
+    metric_candidates: ""
+  },
   busy: false
 };
 
@@ -55,11 +74,30 @@ async function init() {
   $("#run").addEventListener("click", () => runSimulation($("#policy").value));
   try {
     const health = await request("/health");
-    $("#health").textContent = `API ${health.status}`;
+    $("#health").textContent = `API ${health.status} · ${health.training_case_count || 0} cases`;
+    await loadCases();
   } catch {
     $("#health").textContent = "API offline";
   }
   render();
+}
+
+async function loadCases(query = "") {
+  const params = new URLSearchParams({ limit: "28" });
+  if (query.trim()) params.set("q", query.trim());
+  const data = await request(`/cases?${params.toString()}`);
+  state.cases = data.cases || [];
+  if (!state.selectedCase && state.cases.length) {
+    await selectCase(state.cases[0].case_id, false);
+  }
+}
+
+async function selectCase(caseId, rerender = true) {
+  state.selectedCase = await request(`/cases/${encodeURIComponent(caseId)}`);
+  state.caseScenario = await request(`/cases/${encodeURIComponent(caseId)}/scenario`);
+  state.scenarioConfig.key_breakpoints = (state.selectedCase.intervention_points || []).join("、");
+  state.scenarioConfig.metric_candidates = (state.selectedCase.metric_candidates || []).slice(0, 4).join("、");
+  if (rerender) render();
 }
 
 async function runSimulation(policy) {
@@ -67,11 +105,13 @@ async function runSimulation(policy) {
   try {
     const seed = Number($("#seed").value);
     const population = Number($("#population").value);
-    const validation = await request("/scenarios/validate", { method: "POST", body: JSON.stringify({ population }) });
+    const caseId = state.selectedCase?.case_id;
+    const scenario_overrides = buildScenarioOverrides();
+    const validation = await request("/scenarios/validate", { method: "POST", body: JSON.stringify({ population, case_id: caseId, scenario_overrides }) });
     if (!validation.valid) throw new Error(validation.reason);
     const created = await request("/simulations/run", {
       method: "POST",
-      body: JSON.stringify({ policy_id: policy, seed, population, output_dir: "outputs/api" })
+      body: JSON.stringify({ policy_id: policy, seed, population, case_id: caseId, scenario_overrides, output_dir: "outputs/api" })
     });
     state.run = await request(`/simulations/${created.run_id}`);
     const first = state.run.agents.find((agent) => agent.is_vulnerable) || state.run.agents[0];
@@ -133,9 +173,74 @@ function render() {
   content.innerHTML = route[state.active]();
   const experimentButton = $("#run-experiment");
   if (experimentButton) experimentButton.addEventListener("click", runExperiment);
+  const caseSearch = $("#case-search");
+  if (caseSearch) {
+    caseSearch.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter") return;
+      setBusy(true, "正在检索训练案例...");
+      try {
+        await loadCases(caseSearch.value);
+      } catch (error) {
+        setNotice(error.message || "案例检索失败");
+      } finally {
+        setBusy(false);
+        render();
+      }
+    });
+  }
+  document.querySelectorAll("[data-config-key]").forEach((input) => {
+    const updateConfig = () => {
+      const key = input.dataset.configKey;
+      state.scenarioConfig[key] = input.type === "number" || input.type === "range" ? Number(input.value) : input.value;
+      syncConfigMirror(key, input.value);
+    };
+    input.addEventListener("input", updateConfig);
+    input.addEventListener("change", updateConfig);
+  });
+  document.querySelectorAll("[data-case-id]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      setBusy(true, "正在载入案例模板...");
+      try {
+        await selectCase(button.dataset.caseId, false);
+        setNotice(`已选择 ${state.selectedCase.case_id}`);
+      } catch (error) {
+        setNotice(error.message || "案例载入失败");
+      } finally {
+        setBusy(false);
+        render();
+      }
+    });
+  });
   document.querySelectorAll("[data-run-policy]").forEach((button) => {
     button.addEventListener("click", () => runSimulation(button.dataset.runPolicy));
   });
+}
+
+function buildScenarioOverrides() {
+  return {
+    vulnerable_ratio: Number(state.scenarioConfig.vulnerable_ratio),
+    timestep_minutes: Number(state.scenarioConfig.timestep_minutes),
+    warning_minute: Number(state.scenarioConfig.warning_minute),
+    evacuation_order_minute: Number(state.scenarioConfig.evacuation_order_minute),
+    bridge_closure_minute: Number(state.scenarioConfig.bridge_closure_minute),
+    danger_arrival_minute: Number(state.scenarioConfig.danger_arrival_minute),
+    communication_failure_minute: Number(state.scenarioConfig.communication_failure_minute),
+    communication_failure_rate: Number(state.scenarioConfig.communication_failure_rate),
+    vehicles: Number(state.scenarioConfig.vehicles),
+    care_workers: Number(state.scenarioConfig.care_workers),
+    stretchers: Number(state.scenarioConfig.stretchers),
+    shelter_beds: Number(state.scenarioConfig.shelter_beds)
+  };
+}
+
+function syncConfigMirror(key, value) {
+  const mirror = document.querySelector(`[data-config-value="${key}"]`);
+  if (!mirror) return;
+  if (key === "vulnerable_ratio" || key === "communication_failure_rate") {
+    mirror.textContent = `${Math.round(Number(value) * 100)}%`;
+  } else {
+    mirror.textContent = value;
+  }
 }
 
 function metric(label, value, tone = "good") {
@@ -148,6 +253,7 @@ function row(label, value) {
 
 function overview() {
   const m = state.run?.metrics || {};
+  const caseContext = state.run?.case_context || state.selectedCase;
   return `<div class="view">
     <section class="metric-grid">
       ${metric("安全转移率", pct(m.safe_before_danger_rate))}
@@ -163,6 +269,7 @@ function overview() {
       </div>
       <div class="side-table">
         <h2>最新运行</h2>
+        ${row("训练案例", caseContext?.case_id || "未选择")}
         ${row("策略", state.run?.run?.policy_id || "未运行")}
         ${row("Run ID", state.run?.run?.id || "-")}
         ${row("中位提前量", `${m.lead_time_minutes_median || 0} 分钟`)}
@@ -173,14 +280,55 @@ function overview() {
 }
 
 function editor() {
-  return `<div class="view two"><section><h2>政策方案</h2><div class="policy-list">
+  const selected = state.selectedCase;
+  const scenario = state.caseScenario;
+  const cases = state.cases.length ? state.cases : [];
+  const cfg = state.scenarioConfig;
+  return `<div class="view"><section><h2>真实案例训练库</h2>
+    <div class="case-tools">
+      <label>检索案例<input id="case-search" value="" placeholder="养老、桥梁、工地、郑州..." /></label>
+      <span>${cases.length} 个候选案例</span>
+    </div>
+    <div class="case-grid">
+      <div class="case-list">
+        ${cases.map((item) => `<button data-case-id="${escapeHtml(item.case_id)}" class="${selected?.case_id === item.case_id ? "selected" : ""}">
+          <strong>${escapeHtml(item.case_id)}</strong>
+          <span>${escapeHtml(item.case_name)}</span>
+          <small>${escapeHtml(item.scenario_class)}</small>
+        </button>`).join("")}
+      </div>
+      <div class="case-detail">
+        <h2>${escapeHtml(selected?.case_name || "选择案例")}</h2>
+        ${row("案例编号", selected?.case_id || "-")}
+        ${row("情景类型", selected?.scenario_class || "-")}
+        ${row("影响场所", (selected?.affected_setting || []).join("、") || "-")}
+        ${row("真实伤亡/死失", selected?.observed_outcomes?.deaths_or_dead_missing || "未抽取")}
+        ${row("直接经济损失", selected?.observed_outcomes?.direct_economic_loss || "未抽取")}
+        <div class="tag-band">${(selected?.failure_modes || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+        <div class="tag-band policy-tags">${(scenario?.recommended_policies || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+      </div>
+    </div>
+    </section><div class="view two nested"><section><h2>政策方案</h2><div class="policy-list">
     ${policies.map(([id, name, short]) => `<button data-run-policy="${id}"><strong>${id} · ${name}</strong><span>${short}</span></button>`).join("")}
     </div></section><section><h2>合成县域设定</h2><div class="form-grid">
-      <label>脆弱人口比例<input value="约 32%" readonly /></label>
-      <label>避难点<input value="学校/卫生院/镇政府" readonly /></label>
-      <label>关键断点<input value="东桥、山顶通信站、养老院" readonly /></label>
-      <label>时间步长<input value="5 分钟" readonly /></label>
-    </div></section></div>`;
+      <label>案例模板<input value="${escapeHtml(selected?.case_id || "未选择")}" readonly /></label>
+      <label>训练来源<input value="应急管理部报告" readonly /></label>
+      <label>脆弱人口比例<span class="live-value" data-config-value="vulnerable_ratio">${Math.round(Number(cfg.vulnerable_ratio) * 100)}%</span><input data-config-key="vulnerable_ratio" value="${escapeHtml(cfg.vulnerable_ratio)}" min="0.05" max="0.85" step="0.01" type="range" /></label>
+      <label>关键断点<input data-config-key="key_breakpoints" value="${escapeHtml(cfg.key_breakpoints || "预警-响应联动触发阈值")}" /></label>
+      <label>时间步长<select data-config-key="timestep_minutes">
+        ${[5, 10, 15].map((value) => `<option value="${value}" ${Number(cfg.timestep_minutes) === value ? "selected" : ""}>${value} 分钟</option>`).join("")}
+      </select></label>
+      <label>指标候选<input data-config-key="metric_candidates" value="${escapeHtml(cfg.metric_candidates || "casualty_rate、property_loss_rate")}" /></label>
+      <label>预警时刻<input data-config-key="warning_minute" value="${escapeHtml(cfg.warning_minute)}" min="0" max="220" step="5" type="number" /></label>
+      <label>转移命令<input data-config-key="evacuation_order_minute" value="${escapeHtml(cfg.evacuation_order_minute)}" min="0" max="360" step="5" type="number" /></label>
+      <label>危险到达<input data-config-key="danger_arrival_minute" value="${escapeHtml(cfg.danger_arrival_minute)}" min="60" max="360" step="5" type="number" /></label>
+      <label>桥梁封闭<input data-config-key="bridge_closure_minute" value="${escapeHtml(cfg.bridge_closure_minute)}" min="0" max="360" step="5" type="number" /></label>
+      <label>通信失败率<span class="live-value" data-config-value="communication_failure_rate">${Math.round(Number(cfg.communication_failure_rate) * 100)}%</span><input data-config-key="communication_failure_rate" value="${escapeHtml(cfg.communication_failure_rate)}" min="0" max="0.95" step="0.05" type="range" /></label>
+      <label>转运车辆<input data-config-key="vehicles" value="${escapeHtml(cfg.vehicles)}" min="1" max="300" step="1" type="number" /></label>
+      <label>照护人员<input data-config-key="care_workers" value="${escapeHtml(cfg.care_workers)}" min="1" max="300" step="1" type="number" /></label>
+      <label>担架数量<input data-config-key="stretchers" value="${escapeHtml(cfg.stretchers)}" min="1" max="300" step="1" type="number" /></label>
+      <label>避难床位<input data-config-key="shelter_beds" value="${escapeHtml(cfg.shelter_beds)}" min="50" max="5000" step="10" type="number" /></label>
+    </div></section></div></div>`;
 }
 
 function timeline() {
@@ -222,15 +370,17 @@ function explanation() {
 
 function review() {
   const m = state.run?.metrics || {};
+  const selected = state.run?.case_context || state.selectedCase;
   const uplift = metricMean("S5", "safe_before_danger_rate") !== undefined && metricMean("S0", "safe_before_danger_rate") !== undefined
     ? pct(Math.max(0, metricMean("S5", "safe_before_danger_rate") - metricMean("S0", "safe_before_danger_rate")))
     : "待实验";
   return `<div class="view two"><section><h2>策略建议</h2>
+    <p>当前训练案例：${escapeHtml(selected?.case_name || "未选择")}。</p>
     <p>当前 ${escapeHtml(state.run?.run?.policy_id || "-")} 安全转移率为 ${pct(m.safe_before_danger_rate)}，脆弱群体风险为 ${pct(m.vulnerable_harm_risk)}。</p>
     <p>批量实验中 S5 相比 S0 的安全转移率均值提升：${uplift}。</p>
-    <p>优先动作：提前预警、脆弱户逐户确认、车辆与照护资源联动调度、桥路断点预案同步更新。</p>
+    <p>优先动作：${escapeHtml(state.scenarioConfig.key_breakpoints || (selected?.intervention_points || ["提前预警", "脆弱户逐户确认", "车辆与照护资源联动调度", "桥路断点预案同步更新"]).join("、"))}。</p>
     </section><section><h2>交付状态</h2>
-    ${row("数据标签", "SYNTHETIC / SIMULATED")}
+    ${row("数据标签", "FACT / SYNTHETIC / SIMULATED")}
     ${row("外部模型密钥", "不需要")}
     ${row("核心内核", "规则智能体 + 多层网络 + 资源调度")}
     ${row("输出", "JSON 指标、事件、个体轨迹、实验比较")}

@@ -25,6 +25,35 @@ def health() -> dict[str, Any]:
     return service.health()
 
 
+@app.get("/cases")
+def list_cases(
+    q: str = "",
+    scenario_class: str = "",
+    module: str = "",
+    policy: str = "",
+    limit: int = 50,
+) -> dict[str, Any]:
+    return service.list_cases(
+        {
+            "q": q,
+            "scenario_class": scenario_class,
+            "module": module,
+            "policy": policy,
+            "limit": limit,
+        }
+    )
+
+
+@app.get("/cases/{case_id}")
+def get_case(case_id: str) -> dict[str, Any]:
+    return service.get_case(case_id)
+
+
+@app.get("/cases/{case_id}/scenario")
+def generate_case_scenario(case_id: str) -> dict[str, Any]:
+    return service.generate_case_scenario(case_id)
+
+
 @app.post("/scenarios/validate")
 def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     return service.validate_scenario(payload)
@@ -58,4 +87,3 @@ def run_experiment(payload: dict[str, Any]) -> dict[str, Any]:
 @app.get("/experiments/{experiment_id}/comparison")
 def get_experiment_comparison(experiment_id: str) -> dict[str, Any]:
     return service.get_experiment_comparison(experiment_id)
-

@@ -1,11 +1,12 @@
 # HongCe
 
-洪策：极端洪涝下脆弱群体转移与基层资源配置多智能体政策推演系统。
+洪策：基于真实灾害事故调查报告训练素材的极端事件人员转移与协同治理多智能体政策推演系统。
 
 Current status: runnable competition MVP. The system includes a deterministic
 simulation kernel, S0-S5 policies, A/B/C batch experiments, HTTP API, seven-page
-frontend workbench, tests, and delivery documents. It runs without external model
-keys; policy comparisons are produced from actual simulation runs.
+frontend workbench, a 28-case emergency-report training corpus, tests, and
+delivery documents. It runs without external model keys; policy comparisons are
+produced from actual simulation runs.
 
 ## Local Commands
 
@@ -23,6 +24,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests
 One-command local launcher:
 
 ```bash
+python3 -m pip install -r requirements.txt
 python3 scripts/start_hongce.py
 ```
 
@@ -47,6 +49,9 @@ fetch event streams and individual traces, and execute A/B/C policy experiments.
 API endpoints:
 
 - `GET /health`
+- `GET /cases`
+- `GET /cases/{case_id}`
+- `GET /cases/{case_id}/scenario`
 - `POST /scenarios/validate`
 - `POST /simulations/run`
 - `GET /simulations/{run_id}`
@@ -64,6 +69,16 @@ API endpoints:
 HongCe is for policy stress testing and assisted analysis. It is not a flood
 forecasting system, engineering assessment system, or automated command system.
 
+## Training Case Corpus
+
+The runnable app uses the processed case corpus in `data/processed/`.
+The current corpus contains 28 structured cases from Ministry of Emergency
+Management reports. Each case can be used for retrieval, scenario-template
+generation, state-machine rule extraction, and parameter calibration.
+
+Raw downloaded PDFs/pages live under `data/raw/` during local research, but they
+are bulky and not required for classmates to run the app.
+
 ## Key Files
 
 - `src/hongce/models.py`: data contracts and evacuation state machine.
@@ -71,6 +86,8 @@ forecasting system, engineering assessment system, or automated command system.
 - `src/hongce/engine.py`: rule-based multi-agent simulation kernel.
 - `src/hongce/experiments.py`: batch policy experiments and explanation packs.
 - `src/hongce/adapters.py`: offline rule adapter and YuLan adapter contract.
+- `data/processed/`: processed FACT case corpus used by the app.
+- `scripts/build_hongce_training_corpus.py`: rebuilds the processed case corpus.
 - `api/`: service, optional FastAPI app, no-dependency HTTP server.
 - `web/`: zero-dependency browser workbench.
 - `docs/`: architecture, technical document, model/data cards, validation report, demo script.

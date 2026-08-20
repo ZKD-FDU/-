@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from . import service
 
@@ -19,9 +19,31 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query)
         if path == "/health":
             self.reply(service.health())
+            return
+        if path == "/cases":
+            self.reply(
+                service.list_cases(
+                    {
+                        "q": first(query, "q"),
+                        "scenario_class": first(query, "scenario_class"),
+                        "module": first(query, "module"),
+                        "policy": first(query, "policy"),
+                        "limit": first(query, "limit") or 50,
+                    }
+                )
+            )
+            return
+        if path.startswith("/cases/") and path.endswith("/scenario"):
+            case_id = path.split("/")[2]
+            self.reply(service.generate_case_scenario(case_id))
+            return
+        if path.startswith("/cases/"):
+            self.reply(service.get_case(path.split("/")[2]))
             return
         if path.startswith("/simulations/") and path.endswith("/events"):
             run_id = path.split("/")[2]
@@ -79,6 +101,11 @@ def main() -> int:
     print(f"HongCe API listening on http://{host}:{port}")
     server.serve_forever()
     return 0
+
+
+def first(query: dict[str, list[str]], key: str) -> str:
+    values = query.get(key, [])
+    return values[0] if values else ""
 
 
 if __name__ == "__main__":

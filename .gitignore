@@ -8,6 +8,10 @@ __pycache__/
 # Local runtime outputs can be regenerated from CLI/API.
 outputs/
 
+# Raw downloaded ministry PDFs/pages are bulky source material. The runnable app
+# uses the small processed corpus in data/processed/.
+data/raw/
+
 # Local package artifacts.
 *.zip
 dist/
