@@ -119,8 +119,14 @@ h2 {
 .row span,
 .policy-card small,
 .policy-list span,
-.event span {
+.event span,
+.section-note {
   color: #5d6a70;
+}
+
+.section-note {
+  margin-bottom: 0;
+  line-height: 1.6;
 }
 
 .controls,
@@ -374,13 +380,13 @@ section {
   gap: 10px;
 }
 
-.policy-list button {
+.policy-list button,
+.policy-option {
   border: 1px solid #cfd8dc;
   background: #f9fbfb;
   border-radius: 6px;
   padding: 13px;
   text-align: left;
-  cursor: pointer;
   display: grid;
   gap: 5px;
 }
@@ -541,6 +547,42 @@ th {
 
 .tick b {
   color: #1b6b6f;
+}
+
+.tick strong {
+  font-size: 16px;
+}
+
+.tick span {
+  color: #3e4b52;
+  line-height: 1.45;
+}
+
+.tick small {
+  color: #6a777d;
+  background: #f2f5f6;
+  border-radius: 5px;
+  padding: 6px;
+  overflow-wrap: anywhere;
+}
+
+.tick.ready {
+  border-color: #b8c6cc;
+  background: #fbfcfc;
+}
+
+.tick.warning,
+.tick.message {
+  border-color: #d7b35c;
+}
+
+.tick.task,
+.tick.dispatch {
+  border-color: #8ab8aa;
+}
+
+.tick.facility {
+  border-color: #c8896d;
 }
 
 .comparison {

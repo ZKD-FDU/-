@@ -150,7 +150,8 @@ async function runExperiment() {
 
 function setBusy(value, text) {
   state.busy = value;
-  $("#run").disabled = value;
+  const run = $("#run");
+  if (run) run.disabled = value;
   if (text) setNotice(text);
 }
 
@@ -160,6 +161,8 @@ function setNotice(text) {
 
 function render() {
   $("#page-title").textContent = state.active;
+  const runControls = $("#run-controls");
+  if (runControls) runControls.hidden = state.active !== "县域态势总览";
   document.querySelectorAll("#tabs button").forEach((button) => button.classList.toggle("active", button.dataset.tab === state.active));
   const route = {
     "县域态势总览": overview,
@@ -309,7 +312,7 @@ function editor() {
       </div>
     </div>
     </section><div class="view two nested"><section><h2>政策方案</h2><div class="policy-list">
-    ${policies.map(([id, name, short]) => `<button data-run-policy="${id}"><strong>${id} · ${name}</strong><span>${short}</span></button>`).join("")}
+    ${policies.map(([id, name, short]) => `<div class="policy-option"><strong>${id} · ${name}</strong><span>${short}</span></div>`).join("")}
     </div></section><section><h2>合成县域设定</h2><div class="form-grid">
       <label>案例模板<input value="${escapeHtml(selected?.case_id || "未选择")}" readonly /></label>
       <label>训练来源<input value="应急管理部报告" readonly /></label>
@@ -333,13 +336,45 @@ function editor() {
 
 function timeline() {
   const events = (state.run?.events || []).slice(-12);
-  const rows = events.length ? events : [{ minute: 0, event_type: "ready", description: "点击运行生成事件流" }];
-  return `<div class="view"><div class="timeline">${rows.map((event) => `<div class="tick"><b>${escapeHtml(event.minute)}'</b><strong>${escapeHtml(event.event_type)}</strong><span>${escapeHtml(event.description)}</span></div>`).join("")}</div>
+  const rows = events.length ? events : [{ minute: 0, kind: "ready", message: "请先在主页运行一次仿真，事件流会在这里显示。" }];
+  return `<div class="view"><section><h2>事件流</h2><p class="section-note">每张卡片表示一次仿真事件：左上角是发生时间，标题是事件类型，正文是具体动作。这里展示的是最新一次运行的末尾事件。</p></section>
+    <div class="timeline">${rows.map((event) => eventCard(event)).join("")}</div>
     <section class="metric-grid compact">
       ${metric("漏管关键动作", pct(state.run?.metrics?.missed_critical_action_rate), "warn")}
       ${metric("信任变化", num(state.run?.metrics?.trust_delta))}
       ${metric("群体缺口", num(state.run?.metrics?.group_safety_gap), "neutral")}
     </section></div>`;
+}
+
+function eventCard(event) {
+  const kind = event.kind || event.event_type || "event";
+  const message = event.message || event.description || "无说明";
+  const payload = event.payload && Object.keys(event.payload).length
+    ? `<small>${escapeHtml(JSON.stringify(event.payload))}</small>`
+    : "";
+  return `<div class="tick ${escapeHtml(kind)}"><b>${escapeHtml(event.minute)} 分钟</b><strong>${escapeHtml(eventKindLabel(kind))}</strong><span>${escapeHtml(eventMessageLabel(message))}</span>${payload}</div>`;
+}
+
+function eventKindLabel(kind) {
+  return {
+    ready: "等待运行",
+    facility: "设施状态",
+    warning: "预警发布",
+    message: "信息触达",
+    task: "转移任务",
+    dispatch: "资源调度"
+  }[kind] || kind;
+}
+
+function eventMessageLabel(message) {
+  return {
+    "communications degraded": "山地区域通信能力下降，部分对象可能无法及时收到预警。",
+    "bridge_east closed": "东桥封闭，养老院和北谷村到避难点的路线受阻。",
+    "official warning issued": "县级应急部门发布正式转移预警。",
+    "warning converted to evacuation consideration": "居民或机构对象收到预警并进入转移决策。",
+    "evacuation task created": "系统为对象生成转移任务，等待车辆、照护或路线资源。",
+    "person sheltered": "对象已被转运并完成安置。"
+  }[message] || message;
 }
 
 function callDesk() {
@@ -365,7 +400,7 @@ function explanation() {
   const traces = Array.isArray(state.trace?.traces) ? state.trace.traces : [];
   const events = (state.run?.events || []).slice(-12);
   return `<div class="view two"><section><h2>个体决策轨迹</h2>${traces.map((item) => `<div class="trace"><strong>${escapeHtml(item.minute)} 分钟 · ${escapeHtml(item.action)}</strong><p>${escapeHtml(item.reason)}</p></div>`).join("") || "<p>运行后显示首个脆弱个体轨迹。</p>"}</section>
-    <section><h2>事件记录</h2>${events.map((item) => `<div class="event"><strong>${escapeHtml(item.minute)} 分钟 · ${escapeHtml(item.event_type)}</strong><span>${escapeHtml(item.description)}</span></div>`).join("") || "<p>运行后显示事件记录。</p>"}</section></div>`;
+    <section><h2>事件记录</h2>${events.map((item) => eventCard(item)).join("") || "<p>运行后显示事件记录。</p>"}</section></div>`;
 }
 
 function review() {
