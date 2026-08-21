@@ -378,6 +378,18 @@ section {
   color: #3d4d4e;
 }
 
+.map-badges .good {
+  border-color: #9fc7b2;
+  background: #eef8f2;
+  color: #14624d;
+}
+
+.map-badges .bad {
+  border-color: #d59b81;
+  background: #fff0e9;
+  color: #9a4129;
+}
+
 .terrain-map {
   display: block;
   width: 100%;
@@ -429,6 +441,11 @@ section {
   filter: url("#terrainShadow");
 }
 
+.risk-zone.risk-medium {
+  fill: rgba(204, 151, 70, 0.38);
+  stroke: rgba(144, 98, 35, 0.72);
+}
+
 .map-road {
   fill: none;
   stroke: #e9d8a6;
@@ -444,11 +461,30 @@ section {
   stroke-dasharray: 16 9;
 }
 
+.map-road.active {
+  stroke: #f4c76b;
+  animation: routePulse 1.4s ease-in-out infinite alternate;
+}
+
+.map-road.closed {
+  stroke: #9a4129;
+  stroke-dasharray: 4 10;
+  opacity: 0.95;
+}
+
 .map-point circle,
 .map-point rect {
   stroke: white;
   stroke-width: 3;
   filter: drop-shadow(0 4px 5px rgba(24, 38, 39, 0.38));
+}
+
+.map-point .progress-ring {
+  fill: none;
+  stroke: #2c9b64;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
 }
 
 .map-point text,
@@ -467,6 +503,13 @@ section {
   fill: #405257;
   font-size: 13px;
   font-weight: 600;
+  stroke-width: 3;
+}
+
+.map-point .map-alert {
+  fill: #9a4129;
+  font-size: 13px;
+  font-weight: 800;
   stroke-width: 3;
 }
 
@@ -498,6 +541,11 @@ section {
   stroke: #9a4129;
 }
 
+.map-bridge.closed path {
+  stroke: #9a4129;
+  stroke-width: 6;
+}
+
 .north-arrow path {
   fill: #17202a;
   stroke: white;
@@ -507,6 +555,31 @@ section {
 .north-arrow text {
   text-anchor: middle;
   font-size: 18px;
+}
+
+.live-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(90px, 1fr));
+  gap: 1px;
+  border-top: 1px solid #d9e0e3;
+  background: #d9e0e3;
+}
+
+.live-strip div {
+  background: #fff;
+  padding: 10px 14px;
+  display: grid;
+  gap: 2px;
+}
+
+.live-strip strong {
+  color: #1b6b6f;
+  font-size: 20px;
+}
+
+.live-strip span {
+  color: #5d6a70;
+  font-size: 12px;
 }
 
 .terrain-footer {
@@ -534,8 +607,14 @@ section {
 
 .legend.risk { background: #aa5836; }
 .legend.road { background: #e3a75e; }
+.legend.closed { background: #9a4129; }
 .legend.bridge { background: #374348; }
 .legend.shelter { background: #2c9b64; }
+
+@keyframes routePulse {
+  from { stroke-width: 7; }
+  to { stroke-width: 10; }
+}
 
 .side-table {
   padding: 18px;

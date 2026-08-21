@@ -102,7 +102,7 @@ def get_spatial_package(path: str) -> dict[str, Any]:
         data = load_spatial_package(path)
     except (FileNotFoundError, ValueError) as error:
         return {"error": str(error)}
-    return spatial_context(data)
+    return {**spatial_context(data), "package": data}
 
 
 def derive_spatial_scenario(payload: dict[str, Any]) -> dict[str, Any]:

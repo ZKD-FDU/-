@@ -1,4 +1,6 @@
-const API_BASE = window.HONGCE_API_BASE || "http://127.0.0.1:8000";
+const urlParams = new URLSearchParams(window.location.search);
+const API_BASE = urlParams.get("api") || window.HONGCE_API_BASE || "http://127.0.0.1:8000";
+const SPATIAL_PACKAGE_PATH = "data/spatial/qingyuan";
 
 const policies = [
   ["S0", "基线单向通知", "短信/广播为主"],
@@ -11,7 +13,13 @@ const policies = [
 
 const tabs = ["县域态势总览", "情景编辑器", "实时推演", "叫应确认台", "政策对比", "个体与事件解释", "复盘与建议"];
 
-const spatialMap = {
+const fallbackSpatialMap = {
+  package_id: "frontend-fallback-qingyuan",
+  label: "SYNTHETIC_SPATIAL",
+  method: {
+    route_engine: "frontend_fallback",
+    risk_overlay: "embedded coordinates"
+  },
   places: [
     { id: "north_valley", name: "北谷村", type: "village", population: 220, vulnerable_population: 90, risk_score: 0.82, x: 121.318, y: 31.305 },
     { id: "qingyuan_town", name: "清源镇", type: "town", population: 530, vulnerable_population: 110, risk_score: 0.82, x: 121.392, y: 31.258 },
@@ -26,15 +34,16 @@ const spatialMap = {
     { id: "bridge_east", name: "东桥", risk_score: 0.8, x: 121.372, y: 31.272 },
     { id: "bridge_south", name: "南涵洞", risk_score: 0.45, x: 121.416, y: 31.214 }
   ],
-  riskZones: [
-    { id: "floodplain_01", name: "河湾漫溢区", risk_score: 0.82, polygon: [[121.3, 31.32], [121.47, 31.29], [121.45, 31.22], [121.33, 31.2], [121.3, 31.32]] }
+  risk_zones: [
+    { id: "floodplain_01", name: "河湾漫溢区", risk_score: 0.82, geometry: { type: "Polygon", coordinates: [[[121.3, 31.32], [121.47, 31.29], [121.45, 31.22], [121.33, 31.2], [121.3, 31.32]]] } }
   ],
-  roads: [
-    { id: "road_north_school", name: "北谷-学校道路", coordinates: [[121.318, 31.305], [121.36, 31.29], [121.46, 31.248]] },
-    { id: "road_town_school", name: "清源镇-学校道路", coordinates: [[121.392, 31.258], [121.46, 31.248]] },
-    { id: "road_south_gym", name: "南谷-体育馆道路", coordinates: [[121.428, 31.205], [121.405, 31.225]] },
-    { id: "road_nursing_school", name: "养老院-学校道路", coordinates: [[121.346, 31.282], [121.37, 31.27], [121.46, 31.248]] }
-  ]
+  routes: [
+    { id: "route-north_valley-gym_shelter", origin_id: "north_valley", shelter_id: "gym_shelter", travel_minutes: 29.1, risk_score: 0.82, bridge_exposure_score: 0.8, crosses_high_risk: true },
+    { id: "route-qingyuan_town-gym_shelter", origin_id: "qingyuan_town", shelter_id: "gym_shelter", travel_minutes: 9.3, risk_score: 0.82, bridge_exposure_score: 0, crosses_high_risk: true },
+    { id: "route-south_valley-gym_shelter", origin_id: "south_valley", shelter_id: "gym_shelter", travel_minutes: 7.5, risk_score: 0.82, bridge_exposure_score: 0.45, crosses_high_risk: true },
+    { id: "route-nursing_home-gym_shelter", origin_id: "nursing_home", shelter_id: "gym_shelter", travel_minutes: 20.3, risk_score: 0.82, bridge_exposure_score: 0.8, crosses_high_risk: true }
+  ],
+  coverage: { coverage_minutes: 60, covered_place_count: 4, uncovered_place_count: 0, coverage_rate: 1, total_shelter_capacity: 800 }
 };
 
 const state = {
@@ -45,6 +54,8 @@ const state = {
   cases: [],
   selectedCase: null,
   caseScenario: null,
+  spatialPackage: fallbackSpatialMap,
+  spatialContext: null,
   scenarioConfig: {
     vulnerable_ratio: 0.32,
     timestep_minutes: 5,
@@ -102,11 +113,29 @@ async function init() {
   try {
     const health = await request("/health");
     $("#health").textContent = `API ${health.status} · ${health.training_case_count || 0} cases`;
+    try {
+      await loadSpatialPackage();
+    } catch (error) {
+      state.spatialContext = null;
+      state.spatialPackage = fallbackSpatialMap;
+      setNotice(`空间包暂用离线 fallback：${error.message || "API 未提供空间包"}`);
+    }
     await loadCases();
   } catch {
     $("#health").textContent = "API offline";
   }
   render();
+}
+
+async function loadSpatialPackage() {
+  const params = new URLSearchParams({ path: SPATIAL_PACKAGE_PATH });
+  const data = await request(`/spatial/package?${params.toString()}`);
+  if (data.error) throw new Error(data.error);
+  state.spatialContext = data;
+  state.spatialPackage = data.package || fallbackSpatialMap;
+  if (data.scenario_overrides) {
+    Object.assign(state.scenarioConfig, data.scenario_overrides);
+  }
 }
 
 async function loadCases(query = "") {
@@ -134,11 +163,12 @@ async function runSimulation(policy) {
     const population = Number($("#population").value);
     const caseId = state.selectedCase?.case_id;
     const scenario_overrides = buildScenarioOverrides();
-    const validation = await request("/scenarios/validate", { method: "POST", body: JSON.stringify({ population, case_id: caseId, scenario_overrides }) });
+    const spatial_package_path = SPATIAL_PACKAGE_PATH;
+    const validation = await request("/scenarios/validate", { method: "POST", body: JSON.stringify({ population, case_id: caseId, scenario_overrides, spatial_package_path }) });
     if (!validation.valid) throw new Error(validation.reason);
     const created = await request("/simulations/run", {
       method: "POST",
-      body: JSON.stringify({ policy_id: policy, seed, population, case_id: caseId, scenario_overrides, output_dir: "outputs/api" })
+      body: JSON.stringify({ policy_id: policy, seed, population, case_id: caseId, scenario_overrides, spatial_package_path, output_dir: "outputs/api" })
     });
     state.run = await request(`/simulations/${created.run_id}`);
     const first = state.run.agents.find((agent) => agent.is_vulnerable) || state.run.agents[0];
@@ -290,6 +320,8 @@ function row(label, value) {
 function overview() {
   const m = state.run?.metrics || {};
   const caseContext = state.run?.case_context || state.selectedCase;
+  const spatial = state.run?.spatial_context || state.spatialContext;
+  const spatialSummary = spatial?.summary || spatialPackageSummary(state.spatialPackage);
   return `<div class="view">
     <section class="metric-grid">
       ${metric("安全转移率", pct(m.safe_before_danger_rate))}
@@ -306,13 +338,31 @@ function overview() {
         ${row("Run ID", state.run?.run?.id || "-")}
         ${row("中位提前量", `${m.lead_time_minutes_median || 0} 分钟`)}
         ${row("群体公平缺口", num(m.group_safety_gap))}
+        ${row("空间包", spatial?.package_id || "离线 fallback")}
+        ${row("覆盖率/床位", `${pct(spatialSummary.coverage_rate)} / ${spatialSummary.total_shelter_capacity || state.spatialPackage?.coverage?.total_shelter_capacity || 0}`)}
+        ${row("路线均值/高风险占比", `${spatialSummary.mean_route_minutes || 0} 分钟 / ${pct(spatialSummary.high_risk_route_share)}`)}
       </div>
     </section>
   </div>`;
 }
 
+function spatialPackageSummary(spatialPackage) {
+  const spatial = normalizedSpatialMapFrom(spatialPackage || fallbackSpatialMap);
+  const routes = spatial.routes || [];
+  const routeMinutes = routes.map((route) => Number(route.travel_minutes || 0)).filter(Number.isFinite);
+  const highRiskRoutes = routes.filter((route) => route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65);
+  return {
+    coverage_rate: Number(spatial.coverage?.coverage_rate || 0),
+    total_shelter_capacity: Number(spatial.coverage?.total_shelter_capacity || spatial.shelters.reduce((sum, shelter) => sum + Number(shelter.capacity || 0), 0)),
+    mean_route_minutes: routeMinutes.length ? Math.round((routeMinutes.reduce((sum, value) => sum + value, 0) / routeMinutes.length) * 100) / 100 : 0,
+    high_risk_route_share: routes.length ? highRiskRoutes.length / routes.length : 0
+  };
+}
+
 function terrainMap(metrics = {}) {
-  const bounds = mapBounds();
+  const spatial = normalizedSpatialMap();
+  const live = liveSpatialState(spatial);
+  const bounds = mapBounds(spatial);
   const project = ([lon, lat]) => {
     const width = 1000;
     const height = 620;
@@ -323,42 +373,57 @@ function terrainMap(metrics = {}) {
   };
   const path = (coords) => coords.map((coord, index) => `${index ? "L" : "M"}${project(coord).join(" ")}`).join(" ");
   const closedPath = (coords) => `${path(coords)} Z`;
-  const roadPaths = spatialMap.roads.map((road) => {
-    const risk = road.id.includes("north") || road.id.includes("nursing");
-    return `<path class="map-road ${risk ? "risk-route" : ""}" d="${path(road.coordinates)}"><title>${escapeHtml(road.name)}</title></path>`;
+  const roadPaths = spatial.routes.map((route) => {
+    const routeLive = live.routes[route.id] || {};
+    const classes = ["map-road"];
+    if (route.crosses_high_risk || route.bridge_exposure_score >= 0.65) classes.push("risk-route");
+    if (routeLive.status === "closed") classes.push("closed");
+    if (routeLive.status === "active") classes.push("active");
+    const label = `${route.name || route.id} · ${route.travel_minutes || 0} 分钟 · ${routeLive.label}`;
+    return `<path class="${classes.join(" ")}" d="${path(route.coordinates)}"><title>${escapeHtml(label)}</title></path>`;
   }).join("");
-  const riskZones = spatialMap.riskZones.map((zone) => `<path class="risk-zone" d="${closedPath(zone.polygon)}"><title>${escapeHtml(zone.name)} · 风险 ${Math.round(zone.risk_score * 100)}%</title></path>`).join("");
+  const riskZones = spatial.risk_zones.map((zone) => `<path class="risk-zone risk-${riskLevel(zone.risk_score)}" d="${closedPath(zone.polygon)}"><title>${escapeHtml(zone.name)} · 风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%</title></path>`).join("");
   const contours = terrainContours();
-  const villages = spatialMap.places.map((place) => {
+  const villages = spatial.places.map((place) => {
     const [x, y] = project([place.x, place.y]);
     const vulnerable = Math.round((place.vulnerable_population / place.population) * 100);
-    return `<g class="map-point ${place.type}" transform="translate(${x} ${y})">
-      <circle r="${place.type === "town" ? 10 : place.type === "care" ? 9 : 8}"></circle>
+    const placeLive = live.places[place.id] || { sheltered: 0, total: 0, blocked: 0, moving: 0, progress: 0 };
+    const progress = Math.round(placeLive.progress * 100);
+    const ring = Math.max(0, Math.min(100, progress));
+    const markerType = place.type || (place.id.includes("town") ? "town" : place.id.includes("nursing") ? "care" : "village");
+    return `<g class="map-point ${markerType} risk-${riskLevel(place.risk_score)}" transform="translate(${x} ${y})">
+      <circle class="progress-ring" r="15" pathLength="100" stroke-dasharray="${ring} ${100 - ring}"></circle>
+      <circle r="${markerType === "town" ? 10 : markerType === "care" ? 9 : 8}"></circle>
       <text x="14" y="-10">${escapeHtml(place.name)}</text>
-      <text class="map-subtext" x="14" y="8">人口 ${place.population} · 脆弱 ${vulnerable}%</text>
+      <text class="map-subtext" x="14" y="8">已转 ${placeLive.sheltered}/${placeLive.total || place.population} · 脆弱 ${vulnerable}%</text>
+      ${placeLive.blocked ? `<text class="map-alert" x="14" y="25">受阻 ${placeLive.blocked}</text>` : ""}
     </g>`;
   }).join("");
-  const shelters = spatialMap.shelters.map((shelter) => {
+  const shelters = spatial.shelters.map((shelter) => {
     const [x, y] = project([shelter.x, shelter.y]);
+    const capacityShare = Math.round((live.shelteredTotal / Math.max(1, shelter.capacity || 1)) * 100);
     return `<g class="map-point shelter" transform="translate(${x} ${y})">
       <rect x="-9" y="-9" width="18" height="18" rx="3"></rect>
       <text x="15" y="-8">${escapeHtml(shelter.name)}</text>
-      <text class="map-subtext" x="15" y="10">容量 ${shelter.capacity} 人</text>
+      <text class="map-subtext" x="15" y="10">容量 ${shelter.capacity} · 总安置 ${live.shelteredTotal} · ${capacityShare}%</text>
     </g>`;
   }).join("");
-  const bridges = spatialMap.bridges.map((bridge) => {
+  const bridges = spatial.bridges.map((bridge) => {
     const [x, y] = project([bridge.x, bridge.y]);
-    return `<g class="map-bridge ${bridge.risk_score > 0.7 ? "high" : ""}" transform="translate(${x} ${y})">
+    const closed = live.bridgeClosed && bridge.risk_score >= 0.65;
+    return `<g class="map-bridge ${bridge.risk_score > 0.7 ? "high" : ""} ${closed ? "closed" : ""}" transform="translate(${x} ${y})">
       <path d="M-12 0 L12 0 M-8 -5 L-8 5 M0 -5 L0 5 M8 -5 L8 5"></path>
-      <text x="14" y="-6">${escapeHtml(bridge.name)}</text>
+      <text x="14" y="-6">${escapeHtml(bridge.name)}${closed ? " 封闭" : ""}</text>
     </g>`;
   }).join("");
   const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
   const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
+  const source = state.spatialContext?.package_id || spatial.package_id || "fallback";
+  const method = spatial.method?.route_engine || "unknown";
   return `<div class="terrain-panel">
     <div class="terrain-toolbar">
-      <div><strong>QGIS 空间态势图</strong><span>地形底图 · 风险区 · 转移路线 · 避难点覆盖</span></div>
-      <div class="map-badges"><span>EPSG:4326</span><span>离线空间包</span><span>安全转移 ${safeRate}%</span></div>
+      <div><strong>QGIS 实时空间态势图</strong><span>空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
+      <div class="map-badges"><span>t=${live.minute}′</span><span class="${live.commsDegraded ? "bad" : "good"}">通信${live.commsDegraded ? "受损" : "正常"}</span><span class="${live.bridgeClosed ? "bad" : "good"}">桥涵${live.bridgeClosed ? "封闭" : "可通行"}</span><span>安全转移 ${safeRate}%</span></div>
     </div>
     <svg class="terrain-map" viewBox="0 0 1000 620" role="img" aria-label="洪策 QGIS 地形态势图">
       <defs>
@@ -392,9 +457,16 @@ function terrainMap(metrics = {}) {
         <text y="42">N</text>
       </g>
     </svg>
+    <div class="live-strip">
+      <div><strong>${live.shelteredTotal}</strong><span>已安置对象</span></div>
+      <div><strong>${live.blockedTotal}</strong><span>受阻/资源不足</span></div>
+      <div><strong>${live.movingTotal}</strong><span>正在转移</span></div>
+      <div><strong>${live.dangerEta}′</strong><span>距危险到达</span></div>
+    </div>
     <div class="terrain-footer">
       <span><i class="legend risk"></i>高风险漫溢区</span>
-      <span><i class="legend road"></i>转移路线</span>
+      <span><i class="legend road"></i>可通行路线</span>
+      <span><i class="legend closed"></i>封闭/高风险路线</span>
       <span><i class="legend bridge"></i>桥梁/涵洞断点</span>
       <span><i class="legend shelter"></i>避难点</span>
       <span>资源排队 ${queue} 分钟</span>
@@ -402,13 +474,97 @@ function terrainMap(metrics = {}) {
   </div>`;
 }
 
-function mapBounds() {
+function normalizedSpatialMap() {
+  return normalizedSpatialMapFrom(state.spatialPackage || fallbackSpatialMap);
+}
+
+function normalizedSpatialMapFrom(source) {
+  const fallbackRiskById = Object.fromEntries((fallbackSpatialMap.risk_zones || []).map((zone) => [zone.id, zone]));
+  const fallbackRouteById = Object.fromEntries((fallbackSpatialMap.routes || []).map((route) => [route.id, route]));
+  const places = (source.places || fallbackSpatialMap.places).map((place) => ({
+    type: place.type || (place.id?.includes("town") ? "town" : place.id?.includes("nursing") ? "care" : "village"),
+    ...place
+  }));
+  const shelters = source.shelters || fallbackSpatialMap.shelters;
+  const placeById = Object.fromEntries(places.map((place) => [place.id, place]));
+  const shelterById = Object.fromEntries(shelters.map((shelter) => [shelter.id, shelter]));
+  const risk_zones = (source.risk_zones || fallbackSpatialMap.risk_zones).map((zone) => {
+    const fallback = fallbackRiskById[zone.id] || {};
+    const geometry = zone.geometry || fallback.geometry;
+    const polygon = zone.polygon || geometry?.coordinates?.[0] || fallback.polygon || [];
+    return { ...fallback, ...zone, polygon };
+  }).filter((zone) => zone.polygon?.length);
+  const routes = (source.routes || fallbackSpatialMap.routes).map((route) => {
+    const fallback = fallbackRouteById[route.id] || {};
+    const origin = placeById[route.origin_id] || placeById[fallback.origin_id];
+    const shelter = shelterById[route.shelter_id] || shelterById[fallback.shelter_id];
+    const coordinates = route.coordinates || fallback.coordinates || (origin && shelter ? [[origin.x, origin.y], [shelter.x, shelter.y]] : []);
+    return { ...fallback, ...route, coordinates, name: route.name || `${origin?.name || route.origin_id}-${shelter?.name || route.shelter_id}` };
+  }).filter((route) => route.coordinates?.length >= 2);
+  return { ...fallbackSpatialMap, ...source, places, shelters, risk_zones, routes };
+}
+
+function liveSpatialState(spatial) {
+  const agents = state.run?.agents || [];
+  const events = state.run?.events || [];
+  const scenario = state.run?.scenario_config || state.scenarioConfig;
+  const minute = Math.max(0, ...events.map((event) => Number(event.minute || 0)));
+  const dangerMinute = Number(scenario.danger_arrival_minute || 0);
+  const bridgeMinute = Number(scenario.bridge_closure_minute || 0);
+  const commMinute = Number(scenario.communication_failure_minute || 0);
+  const bridgeClosed = events.some((event) => String(event.message || "").includes("bridge_east closed")) || (bridgeMinute > 0 && minute >= bridgeMinute);
+  const commsDegraded = events.some((event) => String(event.message || "").includes("communications degraded")) || (commMinute > 0 && minute >= commMinute);
+  const places = Object.fromEntries(spatial.places.map((place) => [place.id, { total: 0, sheltered: 0, blocked: 0, moving: 0, progress: 0 }]));
+  for (const agent of agents) {
+    const bucket = places[agent.location_id];
+    if (!bucket) continue;
+    bucket.total += 1;
+    const status = String(agent.status || "");
+    if (status.includes("sheltered")) bucket.sheltered += 1;
+    else if (status.includes("blocked") || status.includes("unreachable") || status.includes("waiting")) bucket.blocked += 1;
+    else if (status.includes("evac") || status.includes("transfer") || status.includes("confirmed")) bucket.moving += 1;
+  }
+  for (const place of spatial.places) {
+    const bucket = places[place.id];
+    if (!bucket.total) bucket.total = Number(place.population || 0);
+    bucket.progress = bucket.total ? bucket.sheltered / bucket.total : 0;
+  }
+  const routes = Object.fromEntries(spatial.routes.map((route) => {
+    const closed = bridgeClosed && (route.bridge_exposure_score >= 0.65 || route.crosses_high_risk);
+    const active = minute >= Number(scenario.evacuation_order_minute || 0) && !closed;
+    const label = closed ? "封闭/绕行" : active ? "转移中" : "待命";
+    return [route.id, { status: closed ? "closed" : active ? "active" : "standby", label }];
+  }));
+  const shelteredTotal = agents.filter((agent) => String(agent.status || "").includes("sheltered")).length;
+  const blockedTotal = agents.filter((agent) => String(agent.status || "").includes("blocked") || String(agent.reason || "").includes("资源")).length;
+  const movingTotal = Math.max(0, agents.filter((agent) => String(agent.status || "").includes("evac") || String(agent.status || "").includes("confirmed")).length);
+  return {
+    minute,
+    dangerEta: dangerMinute ? Math.max(0, dangerMinute - minute) : 0,
+    bridgeClosed,
+    commsDegraded,
+    places,
+    routes,
+    shelteredTotal,
+    blockedTotal,
+    movingTotal
+  };
+}
+
+function riskLevel(score) {
+  const value = Number(score || 0);
+  if (value >= 0.75) return "high";
+  if (value >= 0.45) return "medium";
+  return "low";
+}
+
+function mapBounds(spatial) {
   const coords = [
-    ...spatialMap.places.map((item) => [item.x, item.y]),
-    ...spatialMap.shelters.map((item) => [item.x, item.y]),
-    ...spatialMap.bridges.map((item) => [item.x, item.y]),
-    ...spatialMap.riskZones.flatMap((item) => item.polygon),
-    ...spatialMap.roads.flatMap((item) => item.coordinates)
+    ...spatial.places.map((item) => [item.x, item.y]),
+    ...spatial.shelters.map((item) => [item.x, item.y]),
+    ...spatial.bridges.map((item) => [item.x, item.y]),
+    ...spatial.risk_zones.flatMap((item) => item.polygon),
+    ...spatial.routes.flatMap((item) => item.coordinates)
   ];
   const lons = coords.map(([lon]) => lon);
   const lats = coords.map(([, lat]) => lat);
