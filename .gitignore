@@ -4,6 +4,9 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .DS_Store
+*_styles.db
+/hongce.qgs
+data/qgis/*.qgs
 
 # Local runtime outputs can be regenerated from CLI/API.
 outputs/

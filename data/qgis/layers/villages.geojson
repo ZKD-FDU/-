@@ -1,0 +1,76 @@
+{
+  "type": "FeatureCollection",
+  "name": "villages",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "north_valley",
+        "name": "北谷村",
+        "population": 220,
+        "vulnerable_population": 90
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.318,
+          31.305
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "qingyuan_town",
+        "name": "清源镇",
+        "population": 530,
+        "vulnerable_population": 110
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.392,
+          31.258
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "south_valley",
+        "name": "南谷村",
+        "population": 180,
+        "vulnerable_population": 70
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.428,
+          31.205
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "nursing_home",
+        "name": "青松养老照料中心",
+        "population": 69,
+        "vulnerable_population": 55
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.346,
+          31.282
+        ]
+      }
+    }
+  ]
+}

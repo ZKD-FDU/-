@@ -1,0 +1,48 @@
+{
+  "type": "FeatureCollection",
+  "name": "risk_zones",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "floodplain_01",
+        "name": "河湾漫溢区",
+        "risk_score": 0.82,
+        "level": "高"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.3,
+              31.32
+            ],
+            [
+              121.47,
+              31.29
+            ],
+            [
+              121.45,
+              31.22
+            ],
+            [
+              121.33,
+              31.2
+            ],
+            [
+              121.3,
+              31.32
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "type": "FeatureCollection",
+  "name": "roads",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road_north_school",
+        "name": "北谷-学校道路"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.318,
+            31.305
+          ],
+          [
+            121.36,
+            31.29
+          ],
+          [
+            121.46,
+            31.248
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road_town_school",
+        "name": "清源镇-学校道路"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.392,
+            31.258
+          ],
+          [
+            121.46,
+            31.248
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road_south_gym",
+        "name": "南谷-体育馆道路"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.428,
+            31.205
+          ],
+          [
+            121.405,
+            31.225
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road_nursing_school",
+        "name": "养老院-学校道路"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            121.346,
+            31.282
+          ],
+          [
+            121.37,
+            31.27
+          ],
+          [
+            121.46,
+            31.248
+          ]
+        ]
+      }
+    }
+  ]
+}
