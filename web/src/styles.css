@@ -137,6 +137,20 @@ h2 {
   flex-wrap: wrap;
 }
 
+.section-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.toolbar-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .subtabs {
   display: flex;
   gap: 8px;
@@ -245,6 +259,30 @@ button.primary {
   padding: 10px 14px;
   min-height: 40px;
   cursor: pointer;
+}
+
+.toolbar-buttons button,
+button.secondary {
+  border: 1px solid #cfd8dc;
+  background: #fff;
+  color: #24343a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.toolbar-buttons button:not(.secondary) {
+  background: #1b6b6f;
+  border-color: #1b6b6f;
+  color: white;
+}
+
+.toolbar-buttons button:hover,
+button.secondary:hover {
+  border-color: #1b6b6f;
+  background: #eef8f7;
+  color: #17323a;
 }
 
 .toolbar button:not(.primary):hover {
@@ -896,6 +934,15 @@ th {
   padding: 0;
 }
 
+.calibration-grid-view {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
 .decision-card {
   border: 1px solid #d9e0e3;
   background: #fff;
@@ -935,6 +982,78 @@ th {
   gap: 4px;
 }
 
+.parameter-table {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.parameter-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(130px, auto) 72px minmax(95px, auto);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #dce4e6;
+  background: #f9fbfb;
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+
+.parameter-row div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.parameter-row strong,
+.parameter-row span,
+.parameter-row b,
+.parameter-row small {
+  overflow-wrap: anywhere;
+}
+
+.parameter-row span,
+.parameter-row small {
+  color: #5d6a70;
+  font-size: 12px;
+}
+
+.parameter-row b {
+  color: #1b6b6f;
+  font-size: 13px;
+}
+
+.parameter-row em {
+  justify-self: start;
+  margin: 0;
+  font-style: normal;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.calibration-card {
+  border: 1px solid #dce4e6;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.calibration-card span {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #1b6b6f;
+  font-weight: 700;
+}
+
+.calibration-card p {
+  color: #5d6a70;
+  line-height: 1.5;
+  margin: 0;
+}
+
 .ok-text,
 .warning-text {
   margin: 10px 0 0;
@@ -969,6 +1088,7 @@ th {
   .view.two,
   .map-band,
   .case-grid,
+  .calibration-grid-view,
   .decision-grid {
     grid-template-columns: 1fr;
     display: grid;
@@ -1004,6 +1124,18 @@ th {
   .case-tools {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .section-actions {
+    display: grid;
+  }
+
+  .toolbar-buttons {
+    justify-content: stretch;
+  }
+
+  .parameter-row {
+    grid-template-columns: 1fr;
   }
 
   .case-tools input {

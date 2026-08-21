@@ -41,6 +41,20 @@ class Handler(BaseHTTPRequestHandler):
                 )
             )
             return
+        if path == "/parameters":
+            self.reply(
+                service.list_parameters(
+                    {
+                        "case_id": first(query, "case_id"),
+                        "scenario_class": first(query, "scenario_class"),
+                        "parameter": first(query, "parameter"),
+                    }
+                )
+            )
+            return
+        if path.startswith("/parameters/cases/"):
+            self.reply(service.get_case_parameters(path.split("/")[3]))
+            return
         if path.startswith("/cases/") and path.endswith("/scenario"):
             case_id = path.split("/")[2]
             self.reply(service.generate_case_scenario(case_id))
@@ -75,6 +89,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/spatial/derive-scenario":
             self.reply(service.derive_spatial_scenario(payload))
+            return
+        if path == "/parameters/derive-scenario":
+            self.reply(service.derive_parameter_scenario(payload))
             return
         if path == "/simulations/run":
             self.reply(service.run_simulation(payload))

@@ -24,7 +24,15 @@ SPATIAL_PACKAGE = {
     "coverage": {"coverage_rate": 0.667, "uncovered_place_count": 1},
     "routes": [
         {"origin_id": "north_valley", "shelter_id": "school", "travel_minutes": 72, "crosses_high_risk": True, "bridge_exposure_score": 0.8},
-        {"origin_id": "qingyuan_town", "shelter_id": "school", "travel_minutes": 28, "crosses_high_risk": False, "bridge_exposure_score": 0.2},
+        {
+            "origin_id": "qingyuan_town",
+            "shelter_id": "school",
+            "route_distance_m": 8300,
+            "travel_minutes": 28,
+            "risk_exposure_minutes": 4.2,
+            "crosses_high_risk": False,
+            "bridge_exposure_score": 0.2,
+        },
         {"origin_id": "south_valley", "shelter_id": "gym", "travel_minutes": 46, "crosses_high_risk": True, "bridge_exposure_score": 0.4},
     ],
     "resources": {"timestep_minutes": 5, "vehicles": 12, "care_workers": 24, "stretchers": 10},
@@ -36,6 +44,8 @@ class SpatialIntegrationTest(unittest.TestCase):
         context = spatial_context(SPATIAL_PACKAGE)
         overrides = context["scenario_overrides"]
         self.assertEqual(context["summary"]["total_shelter_capacity"], 800)
+        self.assertGreaterEqual(context["summary"]["spatial_quality_score"], 0.7)
+        self.assertGreater(context["summary"]["mean_route_distance_m"], 0)
         self.assertEqual(overrides["shelter_beds"], 800)
         self.assertEqual(overrides["vehicles"], 12)
         self.assertGreater(overrides["communication_failure_rate"], 0.3)

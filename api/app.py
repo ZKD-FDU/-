@@ -54,6 +54,21 @@ def generate_case_scenario(case_id: str) -> dict[str, Any]:
     return service.generate_case_scenario(case_id)
 
 
+@app.get("/parameters")
+def list_parameters(case_id: str = "", scenario_class: str = "", parameter: str = "") -> dict[str, Any]:
+    return service.list_parameters({"case_id": case_id, "scenario_class": scenario_class, "parameter": parameter})
+
+
+@app.get("/parameters/cases/{case_id}")
+def get_case_parameters(case_id: str) -> dict[str, Any]:
+    return service.get_case_parameters(case_id)
+
+
+@app.post("/parameters/derive-scenario")
+def derive_parameter_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+    return service.derive_parameter_scenario(payload)
+
+
 @app.post("/scenarios/validate")
 def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     return service.validate_scenario(payload)

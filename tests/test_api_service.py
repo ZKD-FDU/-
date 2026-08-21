@@ -65,6 +65,21 @@ class ApiServiceTest(unittest.TestCase):
         self.assertIn("recommended_policies", template)
         self.assertIn("observed_outcomes", template)
 
+    def test_parameter_library_endpoints(self) -> None:
+        parameters = service.list_parameters({"case_id": "HC-MEM-001"})
+        self.assertEqual(parameters["label"], "FACT_DERIVED_PARAMETER_LIBRARY")
+        self.assertEqual(parameters["quality"]["case_count"], 1)
+        self.assertGreater(parameters["quality"]["parameter_estimate_count"], 0)
+
+        detail = service.get_case_parameters("HC-MEM-001")
+        self.assertEqual(detail["case"]["case_id"], "HC-MEM-001")
+        self.assertIn("scenario_config_suggestion", detail)
+
+        derived = service.derive_parameter_scenario({"case_id": "HC-MEM-001"})
+        self.assertTrue(derived["valid"])
+        self.assertIn("parameters", derived)
+        self.assertIn("warning_minute", derived["scenario_config_suggestion"])
+
     def test_run_simulation_can_attach_real_case_context(self) -> None:
         response = service.run_simulation(
             {

@@ -7,6 +7,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from hongce.calibration import (
+    load_parameter_library,
+    scenario_config_from_parameters,
+    select_parameter_set,
+    summarize_parameter_library,
+)
 from hongce.decision import contextual_bandit_recommendation, default_mdp_definition, optimize_policy_parameters
 from hongce.engine import run_policy
 from hongce.experiments import run_named_experiments, run_policy_batch, write_explanation_pack
@@ -18,17 +24,21 @@ from hongce.spatial import derive_scenario_overrides, load_spatial_package, spat
 RUN_CACHE: dict[str, dict[str, Any]] = {}
 EXPERIMENT_CACHE: dict[str, dict[str, Any]] = {}
 CASE_CORPUS_CACHE: dict[str, Any] | None = None
+PARAMETER_LIBRARY_CACHE: dict[str, Any] | None = None
 CASE_CORPUS_PATH = Path("data/processed/hongce_training_case_corpus.json")
+PARAMETER_LIBRARY_PATH = Path("data/parameters/mem_case_parameter_library.json")
 
 
 def health() -> dict[str, Any]:
     case_count = load_case_corpus().get("summary", {}).get("case_count", 0)
+    parameter_quality = get_parameter_library().get("quality", {})
     return {
         "status": "ok",
         "core": "RuleBasedAgentAdapter",
         "external_model_required": False,
         "data_labels": ["FACT", "SYNTHETIC", "SIMULATED"],
         "training_case_count": case_count,
+        "parameter_estimate_count": parameter_quality.get("parameter_estimate_count", 0),
     }
 
 
@@ -206,6 +216,72 @@ def run_contextual_bandit(payload: dict[str, Any]) -> dict[str, Any]:
         "current_risk_level": payload.get("current_risk_level", "high"),
     }
     return contextual_bandit_recommendation(context=context, seeds=seeds, population=population)
+
+
+def get_parameter_library() -> dict[str, Any]:
+    global PARAMETER_LIBRARY_CACHE
+    if PARAMETER_LIBRARY_CACHE is None:
+        PARAMETER_LIBRARY_CACHE = load_parameter_library(PARAMETER_LIBRARY_PATH)
+    return PARAMETER_LIBRARY_CACHE
+
+
+def list_parameters(filters: dict[str, Any] | None = None) -> dict[str, Any]:
+    filters = filters or {}
+    library = get_parameter_library()
+    case_id = str(filters.get("case_id", "")).strip()
+    scenario_class = str(filters.get("scenario_class", "")).strip()
+    parameter = str(filters.get("parameter", "")).strip()
+
+    cases = library.get("cases", [])
+    if case_id:
+        cases = [case for case in cases if case.get("case_id") == case_id]
+    if scenario_class:
+        cases = [case for case in cases if case.get("scenario_class") == scenario_class]
+
+    if parameter:
+        cases = [
+            {**case, "parameter_estimates": [item for item in case.get("parameter_estimates", []) if item.get("name") == parameter]}
+            for case in cases
+        ]
+
+    return {
+        "label": library.get("label"),
+        "schema_version": library.get("schema_version"),
+        "quality": summarize_parameter_library({"cases": cases}),
+        "source_labels": library.get("source_labels", {}),
+        "parameter_definitions": library.get("parameter_definitions", {}),
+        "aggregates": library.get("aggregates", {}),
+        "cases": cases,
+    }
+
+
+def get_case_parameters(case_id: str) -> dict[str, Any]:
+    library = get_parameter_library()
+    for case in library.get("cases", []):
+        if case.get("case_id") == case_id:
+            return {
+                "label": "CASE_PARAMETER_RECORD",
+                "case": case,
+                "scenario_config_suggestion": scenario_config_from_parameters(library, case_id=case_id),
+            }
+    return {"error": "case parameters not found", "case_id": case_id}
+
+
+def derive_parameter_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+    library = get_parameter_library()
+    case_id = payload.get("case_id")
+    scenario_class = payload.get("scenario_class")
+    parameters = select_parameter_set(library, case_id=case_id, scenario_class=scenario_class)
+    config = scenario_config_from_parameters(library, case_id=case_id, scenario_class=scenario_class)
+    return {
+        "label": "PARAMETER_DERIVED_SCENARIO",
+        "valid": True,
+        "case_id": case_id,
+        "scenario_class": scenario_class,
+        "parameters": parameters,
+        "scenario_config_suggestion": config,
+        "note": "This suggestion supplies calibration priors; user overrides and QGIS spatial overrides still take precedence in simulation requests.",
+    }
 
 
 def load_case_corpus() -> dict[str, Any]:

@@ -55,6 +55,9 @@ API endpoints:
 - `POST /scenarios/validate`
 - `GET /spatial/package?path=data/spatial/qingyuan`
 - `POST /spatial/derive-scenario`
+- `GET /parameters`
+- `GET /parameters/cases/{case_id}`
+- `POST /parameters/derive-scenario`
 - `POST /simulations/run`
 - `GET /simulations/{run_id}`
 - `GET /simulations/{run_id}/events`
@@ -81,6 +84,16 @@ The current corpus contains 28 structured cases from Ministry of Emergency
 Management reports. Each case can be used for retrieval, scenario-template
 generation, state-machine rule extraction, and parameter calibration.
 
+The first case-derived parameter library lives in `data/parameters/` and can be
+rebuilt with:
+
+```bash
+python3 scripts/build_mem_parameter_library.py
+```
+
+Each parameter estimate keeps a range, source label, confidence score, evidence
+keys, and review status.
+
 Raw downloaded PDFs/pages live under `data/raw/` during local research, but they
 are bulky and not required for classmates to run the app.
 
@@ -98,12 +111,15 @@ See `docs/qgis_pyqgis_integration.md`.
 - `src/hongce/scenario.py`: reproducible synthetic Qingyuan scenario generator.
 - `src/hongce/engine.py`: rule-based multi-agent simulation kernel.
 - `src/hongce/experiments.py`: batch policy experiments and explanation packs.
+- `src/hongce/calibration.py`: case-derived parameter library and calibration priors.
 - `src/hongce/decision.py`: MDP/POMDP contract, interpretable policy optimization, and contextual bandit recommendation.
 - `src/hongce/spatial.py`: QGIS spatial package adapter and scenario mapper.
 - `src/hongce/adapters.py`: offline rule adapter and YuLan adapter contract.
 - `data/processed/`: processed FACT case corpus used by the app.
+- `data/parameters/`: MEM case-derived parameter library used for calibration.
 - `scripts/build_hongce_training_corpus.py`: rebuilds the processed case corpus.
+- `scripts/build_mem_parameter_library.py`: rebuilds the parameter library from processed cases.
 - `scripts/qgis_build_spatial_package.py`: QGIS/PyQGIS spatial package builder.
 - `api/`: service, optional FastAPI app, no-dependency HTTP server.
 - `web/`: zero-dependency browser workbench.
-- `docs/`: architecture, technical document, model/data cards, validation report, demo script, decision/RL design.
+- `docs/`: architecture, technical document, model/data cards, validation report, demo script, decision/RL design, calibration and QGIS data standards.

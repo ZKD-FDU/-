@@ -11,7 +11,7 @@ const policies = [
   ["S5", "韧性综合方案", "前移+叫应+调拨"]
 ];
 
-const tabs = ["县域态势总览", "情景编辑器", "实时推演", "叫应确认台", "政策对比", "策略优化与RL", "个体与事件解释", "复盘与建议"];
+const tabs = ["县域态势总览", "情景编辑器", "参数校准", "实时推演", "叫应确认台", "政策对比", "策略优化与RL", "个体与事件解释", "复盘与建议"];
 
 const fallbackSpatialMap = {
   package_id: "frontend-fallback-qingyuan",
@@ -53,6 +53,9 @@ const state = {
   mdp: null,
   optimization: null,
   bandit: null,
+  parameterLibrary: null,
+  selectedCaseParameters: null,
+  parameterScenario: null,
   trace: null,
   cases: [],
   selectedCase: null,
@@ -124,6 +127,7 @@ async function init() {
       setNotice(`空间包暂用离线 fallback：${error.message || "API 未提供空间包"}`);
     }
     await loadCases();
+    await loadParameters();
   } catch {
     $("#health").textContent = "API offline";
   }
@@ -154,9 +158,42 @@ async function loadCases(query = "") {
 async function selectCase(caseId, rerender = true) {
   state.selectedCase = await request(`/cases/${encodeURIComponent(caseId)}`);
   state.caseScenario = await request(`/cases/${encodeURIComponent(caseId)}/scenario`);
+  try {
+    state.selectedCaseParameters = await request(`/parameters/cases/${encodeURIComponent(caseId)}`);
+  } catch {
+    state.selectedCaseParameters = null;
+  }
   state.scenarioConfig.key_breakpoints = (state.selectedCase.intervention_points || []).join("、");
   state.scenarioConfig.metric_candidates = (state.selectedCase.metric_candidates || []).slice(0, 4).join("、");
   if (rerender) render();
+}
+
+async function loadParameters() {
+  state.parameterLibrary = await request("/parameters");
+  if (state.selectedCase?.case_id) {
+    state.selectedCaseParameters = await request(`/parameters/cases/${encodeURIComponent(state.selectedCase.case_id)}`);
+  }
+}
+
+async function deriveParameterScenario() {
+  setBusy(true, "正在从案例参数库推导情景参数...");
+  try {
+    const caseId = state.selectedCase?.case_id || "";
+    state.parameterScenario = await request("/parameters/derive-scenario", {
+      method: "POST",
+      body: JSON.stringify({ case_id: caseId })
+    });
+    const suggestion = state.parameterScenario.scenario_config_suggestion || {};
+    for (const key of ["warning_minute", "evacuation_order_minute", "communication_failure_rate"]) {
+      if (suggestion[key] !== undefined) state.scenarioConfig[key] = suggestion[key];
+    }
+    setNotice(`已从 ${caseId || "全案例"} 参数库推导情景配置。`);
+  } catch (error) {
+    setNotice(error.message || "参数推导失败");
+  } finally {
+    setBusy(false);
+    render();
+  }
 }
 
 async function runSimulation(policy) {
@@ -279,6 +316,7 @@ function render() {
   const route = {
     "县域态势总览": overview,
     "情景编辑器": editor,
+    "参数校准": calibrationWorkbench,
     "实时推演": timeline,
     "叫应确认台": callDesk,
     "政策对比": comparison,
@@ -308,6 +346,23 @@ function render() {
   if (optimizeButton) optimizeButton.addEventListener("click", runPolicyOptimization);
   const banditButton = $("#run-bandit");
   if (banditButton) banditButton.addEventListener("click", runBanditRecommendation);
+  const reloadParametersButton = $("#reload-parameters");
+  if (reloadParametersButton) {
+    reloadParametersButton.addEventListener("click", async () => {
+      setBusy(true, "正在读取案例参数库...");
+      try {
+        await loadParameters();
+        setNotice("案例参数库已加载。");
+      } catch (error) {
+        setNotice(error.message || "参数库加载失败");
+      } finally {
+        setBusy(false);
+        render();
+      }
+    });
+  }
+  const deriveParametersButton = $("#derive-parameter-scenario");
+  if (deriveParametersButton) deriveParametersButton.addEventListener("click", deriveParameterScenario);
   const caseSearch = $("#case-search");
   if (caseSearch) {
     caseSearch.addEventListener("keydown", async (event) => {
@@ -355,6 +410,102 @@ function render() {
   document.querySelectorAll("[data-run-policy]").forEach((button) => {
     button.addEventListener("click", () => runSimulation(button.dataset.runPolicy));
   });
+}
+
+function calibrationWorkbench() {
+  const library = state.parameterLibrary;
+  const quality = library?.quality || {};
+  const caseRecord = state.selectedCaseParameters?.case;
+  const estimates = caseRecord?.parameter_estimates || [];
+  const aggregate = library?.aggregates?.ALL_CASES?.parameters || [];
+  const missing = quality.missing_review_item_counts || {};
+  return `<div class="view">
+    <section>
+      <div class="section-actions">
+        <div>
+          <h2>案例参数库</h2>
+          <p class="section-note">这里把应急管理部案例转成可校准参数范围。每个参数都保留来源标签、置信度和复核状态，供仿真、策略优化和专家校准共用。</p>
+        </div>
+        <div class="toolbar-buttons">
+          <button id="reload-parameters" class="secondary">读取参数库</button>
+          <button id="derive-parameter-scenario">用当前案例推导情景</button>
+        </div>
+      </div>
+      <div class="metric-grid compact">
+        ${metric("案例数", quality.case_count || 0, "neutral")}
+        ${metric("参数估计", quality.parameter_estimate_count || 0, "neutral")}
+        ${metric("平均置信度", pct(quality.mean_confidence || 0), quality.mean_confidence >= 0.55 ? "good" : "warn")}
+        ${metric("需复核转移数", missing.transfer_or_evacuation_count || 0, "warn")}
+      </div>
+    </section>
+    <section class="calibration-grid-view">
+      <div class="decision-card">
+        <h2>当前案例参数</h2>
+        ${caseRecord ? `
+          ${row("案例", `${caseRecord.case_id} · ${caseRecord.case_name}`)}
+          ${row("情景类型", caseRecord.scenario_class)}
+          ${row("平均置信度", pct(caseRecord.calibration_readiness?.mean_confidence || 0))}
+          ${row("下一步复核", caseRecord.calibration_readiness?.next_review_action || "-")}
+          <div class="parameter-table">
+            ${estimates.slice(0, 12).map((item) => parameterRow(item)).join("")}
+          </div>
+        ` : `<p class="section-note">请先在“情景编辑器”选择案例。</p>`}
+      </div>
+      <div class="decision-card">
+        <h2>全案例聚合范围</h2>
+        <div class="parameter-table">
+          ${aggregate.slice(0, 14).map((item) => parameterRow(item, true)).join("")}
+        </div>
+      </div>
+    </section>
+    <section class="calibration-grid">
+      ${sourceCard("CASE_DERIVED", library?.source_labels?.CASE_DERIVED, "来自报告")}
+      ${sourceCard("QGIS_DERIVED", library?.source_labels?.QGIS_DERIVED, "来自空间")}
+      ${sourceCard("EXPERT_PRIOR", library?.source_labels?.EXPERT_PRIOR, "专家先验")}
+      ${sourceCard("SYNTHETIC_ASSUMPTION", library?.source_labels?.SYNTHETIC_ASSUMPTION, "临时假设")}
+    </section>
+    ${state.parameterScenario ? `<section><h2>参数推导情景</h2><div class="decision-result">
+      ${Object.entries(state.parameterScenario.scenario_config_suggestion || {}).map(([key, value]) => row(key, value)).join("")}
+    </div></section>` : ""}
+  </div>`;
+}
+
+function parameterRow(item, aggregate = false) {
+  const confidence = item.confidence ?? item.mean_confidence ?? 0;
+  return `<div class="parameter-row">
+    <div>
+      <strong>${escapeHtml(parameterLabel(item.name))}</strong>
+      <span>${escapeHtml(item.name)}</span>
+    </div>
+    <b>${escapeHtml(item.value_min)} - ${escapeHtml(item.value_max)} ${escapeHtml(item.unit || "")}</b>
+    <em class="${confidence >= 0.55 ? "ok-text" : "warning-text"}">${pct(confidence)}</em>
+    <small>${escapeHtml(aggregate ? item.dominant_source_label : item.source_label)}</small>
+  </div>`;
+}
+
+function parameterLabel(name) {
+  return {
+    warning_lead_minutes: "预警提前量",
+    evacuation_order_delay_minutes: "转移命令延迟",
+    response_activation_delay_minutes: "响应启动延迟",
+    communication_failure_rate: "通信失败率",
+    grassroots_call_strength: "网格叫应强度",
+    vulnerable_priority_weight: "脆弱优先权重",
+    bridge_closure_threshold: "桥梁封闭阈值",
+    route_failure_probability: "路线失效概率",
+    shelter_capacity_pressure: "避难容量压力",
+    public_trust_delta_prior: "信任变化先验",
+    casualty_rate_anchor: "伤亡锚点",
+    property_loss_rate_anchor: "财产损失锚点"
+  }[name] || name;
+}
+
+function sourceCard(label, description, title) {
+  return `<div class="calibration-card">
+    <strong>${escapeHtml(title)}</strong>
+    <span>${escapeHtml(label)}</span>
+    <p>${escapeHtml(description || "-")}</p>
+  </div>`;
 }
 
 function buildScenarioOverrides() {

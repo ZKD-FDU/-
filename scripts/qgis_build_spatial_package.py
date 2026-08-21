@@ -13,9 +13,10 @@ Run with QGIS Python, for example:
 
 Expected fields:
 - places: id/name/population/vulnerable_population
-- shelters: id/name/capacity
-- risk_zones: risk_score or level
-- bridges: id/name/risk_score
+- shelters: id/name/capacity, optional service_radius_minutes/care_capacity
+- risk_zones: risk_score or level, optional hazard_type/depth_m/velocity_mps
+- bridges: id/name/risk_score, optional closure_threshold
+- roads: optional speed_kmh/road_class/oneway
 """
 
 from __future__ import annotations
@@ -80,6 +81,7 @@ def main() -> int:
     places = collect_places(places_layer, risk_zones)
     routes = build_routes(places_layer, shelters_layer, roads_layer, risk_zones, bridges, distance)
     coverage = build_coverage(places, routes, shelters, args.coverage_minutes)
+    quality = build_quality_report(places, shelters, risk_zones, bridges, routes)
 
     package = {
         "label": "SYNTHETIC_SPATIAL",
@@ -89,6 +91,8 @@ def main() -> int:
             "route_engine": "qgis_shortest_path_or_straight_line",
             "coverage_minutes": args.coverage_minutes,
             "risk_overlay": "place centroid intersects risk zone",
+            "distance_unit": "meters",
+            "crs": places_layer.crs().authid(),
         },
         "places": places,
         "shelters": shelters,
@@ -96,6 +100,7 @@ def main() -> int:
         "bridges": strip_private_geometry(bridges),
         "routes": routes,
         "coverage": coverage,
+        "quality": quality,
         "resources": {
             "timestep_minutes": args.timestep_minutes,
             "vehicles": args.vehicles,
@@ -156,6 +161,10 @@ def collect_places(layer, risk_zones: list[dict[str, Any]]) -> list[dict[str, An
                 "population": int_float(field(feature, "population", 100)),
                 "vulnerable_population": int_float(field(feature, "vulnerable_population", 25)),
                 "risk_score": round(risk_score, 3),
+                "elevation_m": optional_float(feature, "elevation_m"),
+                "river_distance_m": optional_float(feature, "river_distance_m"),
+                "hazard_exposure": optional_float(feature, "hazard_exposure"),
+                "administrative_level": field(feature, "administrative_level", ""),
                 "x": round(point.asPoint().x(), 6),
                 "y": round(point.asPoint().y(), 6),
             }
@@ -172,6 +181,10 @@ def collect_shelters(layer) -> list[dict[str, Any]]:
                 "id": field(feature, "id", f"shelter-{feature.id()}"),
                 "name": field(feature, "name", f"shelter-{feature.id()}"),
                 "capacity": int_float(field(feature, "capacity", 300)),
+                "service_radius_minutes": float_field(feature, "service_radius_minutes", 60),
+                "care_capacity": int_float(field(feature, "care_capacity", 0)),
+                "backup_power": bool_field(feature, "backup_power", False),
+                "medical_support": bool_field(feature, "medical_support", False),
                 "x": round(point.asPoint().x(), 6),
                 "y": round(point.asPoint().y(), 6),
             }
@@ -187,7 +200,11 @@ def collect_risk_zones(layer) -> list[dict[str, Any]]:
             {
                 "id": field(feature, "id", f"risk-{feature.id()}"),
                 "name": field(feature, "name", f"risk-{feature.id()}"),
+                "hazard_type": field(feature, "hazard_type", "flood"),
                 "risk_score": max(0.0, min(1.0, risk_score)),
+                "depth_m": optional_float(feature, "depth_m"),
+                "velocity_mps": optional_float(feature, "velocity_mps"),
+                "polygon": polygon_coordinates(feature.geometry()),
                 "_geometry": feature.geometry(),
             }
         )
@@ -203,7 +220,11 @@ def collect_bridges(layer) -> list[dict[str, Any]]:
                 "id": field(feature, "id", f"bridge-{feature.id()}"),
                 "name": field(feature, "name", f"bridge-{feature.id()}"),
                 "risk_score": float_field(feature, "risk_score", 0.45),
+                "closure_threshold": float_field(feature, "closure_threshold", 0.65),
+                "bridge_type": field(feature, "bridge_type", ""),
                 "_geometry": point,
+                "x": round(point.asPoint().x(), 6),
+                "y": round(point.asPoint().y(), 6),
             }
         )
     return bridges
@@ -222,17 +243,25 @@ def build_routes(places_layer, shelters_layer, roads_layer, risk_zones, bridges,
             meters = distance.measureLength(line)
             travel_minutes = meters / 1000 / 25 * 60
             risk_score = max((zone["risk_score"] for zone in risk_zones if intersects(line, zone["_geometry"])), default=0.0)
-            bridge_exposure = max((bridge["risk_score"] for bridge in bridges if intersects(line, bridge["_geometry"])), default=0.0)
+            exposed_zones = [zone for zone in risk_zones if intersects(line, zone["_geometry"])]
+            dependent_bridges = [bridge for bridge in bridges if intersects(line, bridge["_geometry"])]
+            bridge_exposure = max((bridge["risk_score"] for bridge in dependent_bridges), default=0.0)
+            risk_exposure_minutes = travel_minutes * min(1.0, max(risk_score, bridge_exposure))
             candidate = {
                 "id": f"route-{field(place, 'id', place.id())}-{field(shelter, 'id', shelter.id())}",
                 "origin_id": field(place, "id", f"place-{place.id()}"),
                 "shelter_id": field(shelter, "id", f"shelter-{shelter.id()}"),
                 "distance_meters": round(meters, 1),
+                "route_distance_m": round(meters, 1),
                 "travel_minutes": round(travel_minutes, 1),
+                "risk_exposure_minutes": round(risk_exposure_minutes, 1),
                 "risk_score": round(risk_score, 3),
                 "bridge_exposure_score": round(bridge_exposure, 3),
+                "bridge_dependency": [bridge["id"] for bridge in dependent_bridges],
+                "risk_zone_dependency": [zone["id"] for zone in exposed_zones],
                 "crosses_high_risk": risk_score >= 0.65 or bridge_exposure >= 0.65,
                 "route_engine": route_engine,
+                "coordinates": line_coordinates(line),
             }
             if best is None or candidate["travel_minutes"] < best["travel_minutes"]:
                 best = candidate
@@ -284,6 +313,31 @@ def build_coverage(places: list[dict[str, Any]], routes: list[dict[str, Any]], s
         "uncovered_place_count": max(0, len(places) - len(covered)),
         "coverage_rate": round(len(covered) / max(1, len(places)), 3),
         "total_shelter_capacity": sum(int(shelter.get("capacity", 0)) for shelter in shelters),
+        "total_care_capacity": sum(int(shelter.get("care_capacity", 0)) for shelter in shelters),
+    }
+
+
+def build_quality_report(
+    places: list[dict[str, Any]],
+    shelters: list[dict[str, Any]],
+    risk_zones: list[dict[str, Any]],
+    bridges: list[dict[str, Any]],
+    routes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    checks = {
+        "has_population_fields": bool(places) and all(place.get("population") is not None for place in places),
+        "has_vulnerable_population_fields": bool(places) and all(place.get("vulnerable_population") is not None for place in places),
+        "has_shelter_capacity_fields": bool(shelters) and all(shelter.get("capacity") is not None for shelter in shelters),
+        "has_risk_zone_overlay": bool(risk_zones),
+        "has_bridge_layer": bool(bridges),
+        "has_network_routes": bool(routes) and any(route.get("route_engine") == "qgis_shortest_path" for route in routes),
+        "has_risk_exposure_minutes": bool(routes) and all(route.get("risk_exposure_minutes") is not None for route in routes),
+    }
+    score = sum(1 for value in checks.values() if value) / max(1, len(checks))
+    return {
+        "spatial_quality_score": round(score, 3),
+        "checks": checks,
+        "review_note": "Use real administrative points, road speeds, bridge thresholds and hazard-zone attributes before treating outputs as calibrated evidence.",
     }
 
 
@@ -303,12 +357,46 @@ def float_field(feature, name: str, default: float) -> float:
     return float(field(feature, name, default) or default)
 
 
+def optional_float(feature, name: str) -> float | None:
+    value = field(feature, name, None)
+    return None if value in {None, ""} else float(value)
+
+
+def bool_field(feature, name: str, default: bool) -> bool:
+    value = field(feature, name, default)
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "是"}
+
+
 def risk_from_level(level: str) -> float:
     return {"low": 0.25, "medium": 0.5, "high": 0.75, "extreme": 0.95, "低": 0.25, "中": 0.5, "高": 0.75, "极高": 0.95}.get(str(level), 0.5)
 
 
 def intersects(a, b) -> bool:
     return a.intersects(b) or b.intersects(a)
+
+
+def line_coordinates(geometry) -> list[list[float]]:
+    if geometry is None or geometry.isEmpty():
+        return []
+    if geometry.isMultipart():
+        points = geometry.asMultiPolyline()[0] if geometry.asMultiPolyline() else []
+    else:
+        points = geometry.asPolyline()
+    return [[round(point.x(), 6), round(point.y(), 6)] for point in points]
+
+
+def polygon_coordinates(geometry) -> list[list[float]]:
+    if geometry is None or geometry.isEmpty():
+        return []
+    if geometry.isMultipart():
+        polygons = geometry.asMultiPolygon()
+        ring = polygons[0][0] if polygons and polygons[0] else []
+    else:
+        polygon = geometry.asPolygon()
+        ring = polygon[0] if polygon else []
+    return [[round(point.x(), 6), round(point.y(), 6)] for point in ring]
 
 
 if __name__ == "__main__":
