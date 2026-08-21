@@ -62,6 +62,9 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/experiments/") and path.endswith("/comparison"):
             self.reply(service.get_experiment_comparison(path.split("/")[2]))
             return
+        if path == "/decision/mdp":
+            self.reply(service.get_decision_mdp())
+            return
         self.reply({"error": "not found", "path": path}, status=404)
 
     def do_POST(self) -> None:  # noqa: N802
@@ -78,6 +81,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/experiments/run":
             self.reply(service.run_experiment(payload))
+            return
+        if path == "/decision/optimize":
+            self.reply(service.run_policy_optimization(payload))
+            return
+        if path == "/decision/bandit":
+            self.reply(service.run_contextual_bandit(payload))
             return
         self.reply({"error": "not found", "path": path}, status=404)
 

@@ -237,6 +237,21 @@ button.primary {
   cursor: pointer;
 }
 
+.toolbar button:not(.primary) {
+  border: 1px solid #cfd8dc;
+  background: #fff;
+  color: #24343a;
+  border-radius: 6px;
+  padding: 10px 14px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.toolbar button:not(.primary):hover {
+  border-color: #1b6b6f;
+  background: #eef8f7;
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: wait;
@@ -872,6 +887,71 @@ th {
   margin: 0;
 }
 
+.decision-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.decision-card {
+  border: 1px solid #d9e0e3;
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 0;
+}
+
+.reward-list,
+.constraint-list,
+.calibration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reward-list span,
+.constraint-list span,
+.calibration-grid span {
+  background: #f5f7f8;
+  border: 1px solid #dce4e6;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #3c4a51;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.reward-list b,
+.constraint-list b {
+  color: #1b6b6f;
+  float: right;
+}
+
+.decision-result {
+  display: grid;
+  gap: 4px;
+}
+
+.ok-text,
+.warning-text {
+  margin: 10px 0 0;
+  border-radius: 6px;
+  padding: 9px 10px;
+}
+
+.ok-text {
+  color: #14624d;
+  background: #e4f3ed;
+}
+
+.warning-text {
+  color: #9a4129;
+  background: #f8e9e3;
+}
+
 @media (max-width: 980px) {
   .shell {
     grid-template-columns: 1fr;
@@ -888,14 +968,18 @@ th {
   .topbar,
   .view.two,
   .map-band,
-  .case-grid {
+  .case-grid,
+  .decision-grid {
     grid-template-columns: 1fr;
     display: grid;
   }
 
   .metric-grid,
   .metric-grid.compact,
-  .comparison {
+  .comparison,
+  .reward-list,
+  .constraint-list,
+  .calibration-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -908,6 +992,9 @@ th {
   .metric-grid,
   .metric-grid.compact,
   .comparison,
+  .reward-list,
+  .constraint-list,
+  .calibration-grid,
   .policy-list,
   .form-grid,
   nav {

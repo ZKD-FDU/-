@@ -97,3 +97,18 @@ def run_experiment(payload: dict[str, Any]) -> dict[str, Any]:
 @app.get("/experiments/{experiment_id}/comparison")
 def get_experiment_comparison(experiment_id: str) -> dict[str, Any]:
     return service.get_experiment_comparison(experiment_id)
+
+
+@app.get("/decision/mdp")
+def get_decision_mdp() -> dict[str, Any]:
+    return service.get_decision_mdp()
+
+
+@app.post("/decision/optimize")
+def run_policy_optimization(payload: dict[str, Any]) -> dict[str, Any]:
+    return service.run_policy_optimization(payload)
+
+
+@app.post("/decision/bandit")
+def run_contextual_bandit(payload: dict[str, Any]) -> dict[str, Any]:
+    return service.run_contextual_bandit(payload)

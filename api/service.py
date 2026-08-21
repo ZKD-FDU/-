@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from hongce.decision import contextual_bandit_recommendation, default_mdp_definition, optimize_policy_parameters
 from hongce.engine import run_policy
 from hongce.experiments import run_named_experiments, run_policy_batch, write_explanation_pack
 from hongce.models import PolicyId
@@ -174,6 +175,39 @@ def get_experiment_comparison(experiment_id: str) -> dict[str, Any]:
     return {"error": "experiment not found", "experiment_id": experiment_id}
 
 
+def get_decision_mdp() -> dict[str, Any]:
+    return default_mdp_definition().to_dict()
+
+
+def run_policy_optimization(payload: dict[str, Any]) -> dict[str, Any]:
+    seeds = normalize_seed_list(payload.get("seeds"), default=[202608060, 202608061, 202608062])
+    population = int(payload.get("population", 500))
+    method = payload.get("method", "grid")
+    max_candidates = int(payload.get("max_candidates", 24))
+    spatial = load_optional_spatial_context(payload)
+    scenario_overrides = merge_spatial_overrides(payload.get("scenario_overrides", {}), spatial)
+    return optimize_policy_parameters(
+        seeds=seeds,
+        population=population,
+        method="random" if method == "random" else "grid",
+        max_candidates=max_candidates,
+        scenario_overrides=normalize_scenario_config(scenario_overrides),
+    )
+
+
+def run_contextual_bandit(payload: dict[str, Any]) -> dict[str, Any]:
+    seeds = normalize_seed_list(payload.get("seeds"), default=[202608060, 202608061])
+    population = int(payload.get("population", 500))
+    spatial = load_optional_spatial_context(payload)
+    scenario_overrides = merge_spatial_overrides(payload.get("scenario_overrides", {}), spatial)
+    context = {
+        "scenario_overrides": normalize_scenario_config(scenario_overrides),
+        "spatial_context": spatial,
+        "current_risk_level": payload.get("current_risk_level", "high"),
+    }
+    return contextual_bandit_recommendation(context=context, seeds=seeds, population=population)
+
+
 def load_case_corpus() -> dict[str, Any]:
     global CASE_CORPUS_CACHE
     if CASE_CORPUS_CACHE is None:
@@ -309,6 +343,16 @@ def load_optional_spatial_context(payload: dict[str, Any]) -> dict[str, Any] | N
     if not path:
         return None
     return spatial_context(load_spatial_package(path))
+
+
+def normalize_seed_list(value: Any, default: list[int]) -> list[int]:
+    if isinstance(value, str):
+        seeds = [int(part.strip()) for part in value.split(",") if part.strip()]
+        return seeds or default
+    if isinstance(value, list):
+        seeds = [int(seed) for seed in value]
+        return seeds or default
+    return default
 
 
 def merge_spatial_overrides(overrides: dict[str, Any] | None, spatial: dict[str, Any] | None) -> dict[str, Any]:

@@ -61,6 +61,9 @@ API endpoints:
 - `GET /simulations/{run_id}/agents/{agent_id}/trace`
 - `POST /experiments/run`
 - `GET /experiments/{experiment_id}/comparison`
+- `GET /decision/mdp`
+- `POST /decision/optimize`
+- `POST /decision/bandit`
 
 ## Boundaries
 
@@ -95,6 +98,7 @@ See `docs/qgis_pyqgis_integration.md`.
 - `src/hongce/scenario.py`: reproducible synthetic Qingyuan scenario generator.
 - `src/hongce/engine.py`: rule-based multi-agent simulation kernel.
 - `src/hongce/experiments.py`: batch policy experiments and explanation packs.
+- `src/hongce/decision.py`: MDP/POMDP contract, interpretable policy optimization, and contextual bandit recommendation.
 - `src/hongce/spatial.py`: QGIS spatial package adapter and scenario mapper.
 - `src/hongce/adapters.py`: offline rule adapter and YuLan adapter contract.
 - `data/processed/`: processed FACT case corpus used by the app.
@@ -102,4 +106,4 @@ See `docs/qgis_pyqgis_integration.md`.
 - `scripts/qgis_build_spatial_package.py`: QGIS/PyQGIS spatial package builder.
 - `api/`: service, optional FastAPI app, no-dependency HTTP server.
 - `web/`: zero-dependency browser workbench.
-- `docs/`: architecture, technical document, model/data cards, validation report, demo script.
+- `docs/`: architecture, technical document, model/data cards, validation report, demo script, decision/RL design.

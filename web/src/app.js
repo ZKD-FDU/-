@@ -11,7 +11,7 @@ const policies = [
   ["S5", "韧性综合方案", "前移+叫应+调拨"]
 ];
 
-const tabs = ["县域态势总览", "情景编辑器", "实时推演", "叫应确认台", "政策对比", "个体与事件解释", "复盘与建议"];
+const tabs = ["县域态势总览", "情景编辑器", "实时推演", "叫应确认台", "政策对比", "策略优化与RL", "个体与事件解释", "复盘与建议"];
 
 const fallbackSpatialMap = {
   package_id: "frontend-fallback-qingyuan",
@@ -50,6 +50,9 @@ const state = {
   active: tabs[0],
   run: null,
   experiment: null,
+  mdp: null,
+  optimization: null,
+  bandit: null,
   trace: null,
   cases: [],
   selectedCase: null,
@@ -205,6 +208,58 @@ async function runExperiment() {
   }
 }
 
+async function loadMdpContract() {
+  if (state.mdp) return state.mdp;
+  state.mdp = await request("/decision/mdp");
+  return state.mdp;
+}
+
+async function runPolicyOptimization() {
+  setBusy(true, "正在运行可解释政策参数优化...");
+  try {
+    state.mdp = await loadMdpContract();
+    state.optimization = await request("/decision/optimize", {
+      method: "POST",
+      body: JSON.stringify({
+        method: "grid",
+        max_candidates: 18,
+        seeds: [202608060, 202608061, 202608062],
+        population: Number($("#population").value),
+        spatial_package_path: SPATIAL_PACKAGE_PATH,
+        scenario_overrides: buildScenarioOverrides()
+      })
+    });
+    setNotice("策略优化完成：候选组合均来自实际仿真运行。");
+  } catch (error) {
+    setNotice(error.message || "策略优化失败");
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
+async function runBanditRecommendation() {
+  setBusy(true, "正在运行 Contextual Bandit 策略推荐...");
+  try {
+    state.bandit = await request("/decision/bandit", {
+      method: "POST",
+      body: JSON.stringify({
+        seeds: [202608060, 202608061],
+        population: Number($("#population").value),
+        spatial_package_path: SPATIAL_PACKAGE_PATH,
+        scenario_overrides: buildScenarioOverrides(),
+        current_risk_level: "high"
+      })
+    });
+    setNotice(`Bandit 推荐：${state.bandit.recommended.action}`);
+  } catch (error) {
+    setNotice(error.message || "Bandit 推荐失败");
+  } finally {
+    setBusy(false);
+    render();
+  }
+}
+
 function setBusy(value, text) {
   state.busy = value;
   const run = $("#run");
@@ -227,12 +282,32 @@ function render() {
     "实时推演": timeline,
     "叫应确认台": callDesk,
     "政策对比": comparison,
+    "策略优化与RL": decisionLab,
     "个体与事件解释": explanation,
     "复盘与建议": review
   };
   content.innerHTML = route[state.active]();
   const experimentButton = $("#run-experiment");
   if (experimentButton) experimentButton.addEventListener("click", runExperiment);
+  const mdpButton = $("#load-mdp");
+  if (mdpButton) {
+    mdpButton.addEventListener("click", async () => {
+      setBusy(true, "正在读取 MDP/POMDP 合约...");
+      try {
+        await loadMdpContract();
+        setNotice("MDP/POMDP 合约已加载。");
+      } catch (error) {
+        setNotice(error.message || "MDP 合约加载失败");
+      } finally {
+        setBusy(false);
+        render();
+      }
+    });
+  }
+  const optimizeButton = $("#run-optimization");
+  if (optimizeButton) optimizeButton.addEventListener("click", runPolicyOptimization);
+  const banditButton = $("#run-bandit");
+  if (banditButton) banditButton.addEventListener("click", runBanditRecommendation);
   const caseSearch = $("#case-search");
   if (caseSearch) {
     caseSearch.addEventListener("keydown", async (event) => {
@@ -727,6 +802,85 @@ function comparison() {
   return `<div class="view"><div class="toolbar"><button class="primary" id="run-experiment">运行 A/B/C 实验</button></div>
     <section class="comparison">${policies.map(([id, name]) => `<div class="policy-card"><strong>${id}</strong><span>${name}</span><b>${pct(metricMean(id, "safe_before_danger_rate"))}</b><small>${state.experiment?.experiments ? "A/B/C 综合安全转移率" : "安全转移率均值"}</small></div>`).join("")}</section>
     <section class="notes">${notes.length ? notes.map((note) => `<p>${escapeHtml(note)}</p>`).join("") : "<p>运行批量实验后显示策略差异、区间和断点解释。</p>"}</section></div>`;
+}
+
+function decisionLab() {
+  const mdp = state.mdp;
+  const best = state.optimization?.best;
+  const recommended = state.bandit?.recommended;
+  return `<div class="view">
+    <div class="toolbar">
+      <button id="load-mdp">查看 MDP/POMDP 定义</button>
+      <button class="primary" id="run-optimization">运行参数优化</button>
+      <button id="run-bandit">运行 Contextual Bandit</button>
+    </div>
+    <section class="decision-grid">
+      <div class="decision-card">
+        <h2>MDP/POMDP 结构</h2>
+        ${mdp ? `
+          ${row("观测模型", mdp.observation_model)}
+          ${row("Transition", mdp.transition_source)}
+          <div class="tag-band">${mdp.state_variables.slice(0, 10).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+          <div class="tag-band policy-tags">${mdp.action_variables.slice(0, 8).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+        ` : "<p>先加载合约，系统会显示状态、动作、奖励、约束和校准来源。</p>"}
+      </div>
+      <div class="decision-card">
+        <h2>奖励与约束</h2>
+        ${mdp ? `
+          <div class="reward-list">${Object.entries(mdp.reward_terms).map(([key, value]) => `<span>${escapeHtml(key)} <b>${num(value)}</b></span>`).join("")}</div>
+          <div class="constraint-list">${Object.entries(mdp.constraints).map(([key, value]) => `<span>${escapeHtml(key)} <b>${num(value)}</b></span>`).join("")}</div>
+        ` : "<p>奖励函数同时惩罚伤亡风险、排队、群体公平缺口和漏管动作。</p>"}
+      </div>
+    </section>
+    <section class="decision-grid">
+      <div class="decision-card">
+        <h2>最优政策参数组合</h2>
+        ${best ? optimizationSummary(best) : "<p>运行参数优化后，这里会显示可解释的最优组合。每个候选组合都会调用仿真内核实际运行。</p>"}
+      </div>
+      <div class="decision-card">
+        <h2>高级 RL 推荐</h2>
+        ${recommended ? banditSummary(recommended) : "<p>Contextual Bandit 会比较“提前预警、加车、养老院优先、备用通信、桥涵绕行”等动作臂。</p>"}
+      </div>
+    </section>
+    <section>
+      <h2>校准与验证路线</h2>
+      <div class="calibration-grid">
+        ${["应急管理部案例校准参数范围", "QGIS 空间包校准路程/覆盖/风险区", "专家校准致灾因子", "S0-S5 与优化/RL 对比", "消融：去掉网格叫应", "消融：去掉脆弱优先", "消融：去掉 QGIS 空间约束", "不确定性：雨强/通信/车辆/响应率"].map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+    </section>
+  </div>`;
+}
+
+function optimizationSummary(best) {
+  const c = best.candidate;
+  const m = best.metrics_mean;
+  return `<div class="decision-result">
+    ${row("综合奖励", best.aggregate_reward)}
+    ${row("安全转移率", pct(m.safe_before_danger_rate))}
+    ${row("脆弱风险", pct(m.vulnerable_harm_risk))}
+    ${row("群体公平缺口", num(m.group_safety_gap))}
+    ${row("排队分钟", num(m.resource_queue_minutes_mean))}
+    <div class="tag-band policy-tags">
+      <span>预警提前 ${escapeHtml(c.warning_lead_minutes)} 分钟</span>
+      <span>命令提前 ${escapeHtml(c.order_lead_minutes)} 分钟</span>
+      <span>车辆 x${escapeHtml(c.vehicle_multiplier)}</span>
+      <span>脆弱优先 ${escapeHtml(c.vulnerable_priority_weight)}</span>
+      <span>通信补救 ${escapeHtml(c.communication_repair_strength)}</span>
+    </div>
+    ${Object.keys(best.violations || {}).length ? `<p class="warning-text">仍有约束违背：${escapeHtml(JSON.stringify(best.violations))}</p>` : "<p class=\"ok-text\">硬约束未触发惩罚。</p>"}
+  </div>`;
+}
+
+function banditSummary(recommended) {
+  const m = recommended.metrics_mean;
+  return `<div class="decision-result">
+    ${row("推荐动作", recommended.action)}
+    ${row("期望奖励", recommended.expected_reward)}
+    ${row("安全转移率", pct(m.safe_before_danger_rate))}
+    ${row("脆弱风险", pct(m.vulnerable_harm_risk))}
+    ${row("排队分钟", num(m.resource_queue_minutes_mean))}
+    ${Object.keys(recommended.constraints || {}).length ? `<p class="warning-text">约束惩罚：${escapeHtml(JSON.stringify(recommended.constraints))}</p>` : "<p class=\"ok-text\">推荐动作满足当前硬约束。</p>"}
+  </div>`;
 }
 
 function explanation() {

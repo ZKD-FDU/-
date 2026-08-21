@@ -13,6 +13,7 @@ from .models import (
 )
 from .engine import run_policy
 from .experiments import run_policy_batch
+from .decision import default_mdp_definition, optimize_policy_parameters, contextual_bandit_recommendation
 from .scenario import generate_qingyuan
 from .spatial import derive_scenario_overrides, load_spatial_package, spatial_context
 
@@ -32,4 +33,7 @@ __all__ = [
     "spatial_context",
     "run_policy",
     "run_policy_batch",
+    "default_mdp_definition",
+    "optimize_policy_parameters",
+    "contextual_bandit_recommendation",
 ]
