@@ -1,0 +1,104 @@
+{
+  "label": "SYNTHETIC_SPATIAL",
+  "package_id": "sample-qgis-package",
+  "source_project": "data/qgis/sample.qgz",
+  "method": {
+    "route_engine": "sample_routes",
+    "coverage_minutes": 60,
+    "risk_overlay": "place centroid intersects risk zone"
+  },
+  "places": [
+    {
+      "id": "north_valley",
+      "name": "北谷村",
+      "population": 220,
+      "vulnerable_population": 90,
+      "risk_score": 0.82
+    },
+    {
+      "id": "qingyuan_town",
+      "name": "清源镇",
+      "population": 530,
+      "vulnerable_population": 110,
+      "risk_score": 0.34
+    },
+    {
+      "id": "south_valley",
+      "name": "南谷村",
+      "population": 180,
+      "vulnerable_population": 70,
+      "risk_score": 0.68
+    }
+  ],
+  "shelters": [
+    {
+      "id": "school_shelter",
+      "name": "第二中学避难点",
+      "capacity": 620
+    },
+    {
+      "id": "gym_shelter",
+      "name": "县体育馆避难点",
+      "capacity": 180
+    }
+  ],
+  "risk_zones": [
+    {
+      "id": "floodplain_01",
+      "name": "河湾漫溢区",
+      "risk_score": 0.82
+    }
+  ],
+  "bridges": [
+    {
+      "id": "bridge_east",
+      "name": "东桥",
+      "risk_score": 0.8
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-north-school",
+      "origin_id": "north_valley",
+      "shelter_id": "school_shelter",
+      "distance_meters": 30000,
+      "travel_minutes": 72,
+      "risk_score": 0.82,
+      "bridge_exposure_score": 0.8,
+      "crosses_high_risk": true
+    },
+    {
+      "id": "route-town-school",
+      "origin_id": "qingyuan_town",
+      "shelter_id": "school_shelter",
+      "distance_meters": 11600,
+      "travel_minutes": 28,
+      "risk_score": 0.34,
+      "bridge_exposure_score": 0.2,
+      "crosses_high_risk": false
+    },
+    {
+      "id": "route-south-gym",
+      "origin_id": "south_valley",
+      "shelter_id": "gym_shelter",
+      "distance_meters": 19200,
+      "travel_minutes": 46,
+      "risk_score": 0.68,
+      "bridge_exposure_score": 0.4,
+      "crosses_high_risk": true
+    }
+  ],
+  "coverage": {
+    "coverage_minutes": 60,
+    "covered_place_count": 2,
+    "uncovered_place_count": 1,
+    "coverage_rate": 0.667,
+    "total_shelter_capacity": 800
+  },
+  "resources": {
+    "timestep_minutes": 5,
+    "vehicles": 12,
+    "care_workers": 24,
+    "stretchers": 10
+  }
+}

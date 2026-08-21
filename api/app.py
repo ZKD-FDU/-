@@ -59,6 +59,16 @@ def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     return service.validate_scenario(payload)
 
 
+@app.get("/spatial/package")
+def get_spatial_package(path: str) -> dict[str, Any]:
+    return service.get_spatial_package(path)
+
+
+@app.post("/spatial/derive-scenario")
+def derive_spatial_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+    return service.derive_spatial_scenario(payload)
+
+
 @app.post("/simulations/run")
 def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
     return service.run_simulation(payload)

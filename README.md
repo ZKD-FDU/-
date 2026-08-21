@@ -53,6 +53,8 @@ API endpoints:
 - `GET /cases/{case_id}`
 - `GET /cases/{case_id}/scenario`
 - `POST /scenarios/validate`
+- `GET /spatial/package?path=data/spatial/qingyuan`
+- `POST /spatial/derive-scenario`
 - `POST /simulations/run`
 - `GET /simulations/{run_id}`
 - `GET /simulations/{run_id}/events`
@@ -79,15 +81,25 @@ generation, state-machine rule extraction, and parameter calibration.
 Raw downloaded PDFs/pages live under `data/raw/` during local research, but they
 are bulky and not required for classmates to run the app.
 
+## QGIS/PyQGIS Spatial Link
+
+HongCe can consume a QGIS-generated `spatial_package.json` with villages,
+shelters, risk zones, bridges, routes, and coverage metrics. Generate it with
+`scripts/qgis_build_spatial_package.py` inside QGIS Python, then pass
+`spatial_package_path` to `/spatial/derive-scenario` or `/simulations/run`.
+See `docs/qgis_pyqgis_integration.md`.
+
 ## Key Files
 
 - `src/hongce/models.py`: data contracts and evacuation state machine.
 - `src/hongce/scenario.py`: reproducible synthetic Qingyuan scenario generator.
 - `src/hongce/engine.py`: rule-based multi-agent simulation kernel.
 - `src/hongce/experiments.py`: batch policy experiments and explanation packs.
+- `src/hongce/spatial.py`: QGIS spatial package adapter and scenario mapper.
 - `src/hongce/adapters.py`: offline rule adapter and YuLan adapter contract.
 - `data/processed/`: processed FACT case corpus used by the app.
 - `scripts/build_hongce_training_corpus.py`: rebuilds the processed case corpus.
+- `scripts/qgis_build_spatial_package.py`: QGIS/PyQGIS spatial package builder.
 - `api/`: service, optional FastAPI app, no-dependency HTTP server.
 - `web/`: zero-dependency browser workbench.
 - `docs/`: architecture, technical document, model/data cards, validation report, demo script.
