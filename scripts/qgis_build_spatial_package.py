@@ -34,6 +34,7 @@ try:  # pragma: no cover - only available in QGIS Python.
         QgsProject,
         QgsWkbTypes,
     )
+    import processing
 except ModuleNotFoundError:  # pragma: no cover
     QgsApplication = None
     QgsDistanceArea = None
@@ -41,6 +42,7 @@ except ModuleNotFoundError:  # pragma: no cover
     QgsGeometry = None
     QgsProject = None
     QgsWkbTypes = None
+    processing = None
 
 
 def main() -> int:
@@ -209,7 +211,10 @@ def build_routes(places_layer, shelters_layer, roads_layer, risk_zones, bridges,
     for place in places_layer.getFeatures():
         best = None
         for shelter in shelters:
-            line = QgsGeometry.fromPolylineXY([place.geometry().centroid().asPoint(), shelter.geometry().centroid().asPoint()])
+            line, route_engine = shortest_path_geometry(roads_layer, place, shelter)
+            if line is None:
+                line = QgsGeometry.fromPolylineXY([place.geometry().centroid().asPoint(), shelter.geometry().centroid().asPoint()])
+                route_engine = "straight_line"
             meters = distance.measureLength(line)
             travel_minutes = meters / 1000 / 25 * 60
             risk_score = max((zone["risk_score"] for zone in risk_zones if intersects(line, zone["_geometry"])), default=0.0)
@@ -223,12 +228,48 @@ def build_routes(places_layer, shelters_layer, roads_layer, risk_zones, bridges,
                 "risk_score": round(risk_score, 3),
                 "bridge_exposure_score": round(bridge_exposure, 3),
                 "crosses_high_risk": risk_score >= 0.65 or bridge_exposure >= 0.65,
+                "route_engine": route_engine,
             }
             if best is None or candidate["travel_minutes"] < best["travel_minutes"]:
                 best = candidate
         if best:
             routes.append(best)
     return routes
+
+
+def shortest_path_geometry(roads_layer, place, shelter):
+    if roads_layer is None or processing is None:
+        return None, ""
+    start = place.geometry().centroid().asPoint()
+    end = shelter.geometry().centroid().asPoint()
+    try:
+        result = processing.run(
+            "native:shortestpathpointtopoint",
+            {
+                "INPUT": roads_layer,
+                "STRATEGY": 0,
+                "DIRECTION_FIELD": "",
+                "VALUE_FORWARD": "",
+                "VALUE_BACKWARD": "",
+                "VALUE_BOTH": "",
+                "DEFAULT_DIRECTION": 2,
+                "SPEED_FIELD": "",
+                "DEFAULT_SPEED": 25,
+                "TOLERANCE": 0,
+                "START_POINT": f"{start.x()},{start.y()}",
+                "END_POINT": f"{end.x()},{end.y()}",
+                "OUTPUT": "TEMPORARY_OUTPUT",
+            },
+            feedback=None,
+        )
+    except Exception:
+        return None, ""
+    output = result.get("OUTPUT")
+    if output is None:
+        return None, ""
+    for route in output.getFeatures():
+        return route.geometry(), "qgis_shortest_path"
+    return None, ""
 
 
 def build_coverage(places: list[dict[str, Any]], routes: list[dict[str, Any]], shelters: list[dict[str, Any]], limit: float) -> dict[str, Any]:
