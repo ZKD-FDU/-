@@ -412,14 +412,21 @@ function callDesk() {
 }
 
 function metricMean(policy, metricName) {
-  const entry = state.experiment?.experiments?.C_chain_breaks?.summary?.[policy]?.[metricName] || state.experiment?.summary?.[policy]?.[metricName];
+  if (state.experiment?.experiments) {
+    const values = Object.values(state.experiment.experiments)
+      .map((experiment) => experiment.summary?.[policy]?.[metricName]?.mean)
+      .filter((value) => Number.isFinite(Number(value)))
+      .map(Number);
+    if (values.length) return values.reduce((sum, value) => sum + value, 0) / values.length;
+  }
+  const entry = state.experiment?.summary?.[policy]?.[metricName];
   return entry && typeof entry === "object" ? Number(entry.mean) : undefined;
 }
 
 function comparison() {
   const notes = state.experiment?.experiments ? Object.values(state.experiment.experiments).flatMap((item) => item.interpretation) : [];
   return `<div class="view"><div class="toolbar"><button class="primary" id="run-experiment">运行 A/B/C 实验</button></div>
-    <section class="comparison">${policies.map(([id, name]) => `<div class="policy-card"><strong>${id}</strong><span>${name}</span><b>${pct(metricMean(id, "safe_before_danger_rate"))}</b><small>安全转移率均值</small></div>`).join("")}</section>
+    <section class="comparison">${policies.map(([id, name]) => `<div class="policy-card"><strong>${id}</strong><span>${name}</span><b>${pct(metricMean(id, "safe_before_danger_rate"))}</b><small>${state.experiment?.experiments ? "A/B/C 综合安全转移率" : "安全转移率均值"}</small></div>`).join("")}</section>
     <section class="notes">${notes.length ? notes.map((note) => `<p>${escapeHtml(note)}</p>`).join("") : "<p>运行批量实验后显示策略差异、区间和断点解释。</p>"}</section></div>`;
 }
 

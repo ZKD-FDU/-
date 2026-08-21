@@ -160,6 +160,10 @@ h2 {
   color: #17323a;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 label {
   display: grid;
   gap: 5px;
