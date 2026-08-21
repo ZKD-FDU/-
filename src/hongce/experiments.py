@@ -38,6 +38,13 @@ def run_policy_batch(
     return comparison
 
 
+EXPERIMENT_LABELS = {
+    "A_money_allocation": "实验 A·资金与资源分配",
+    "B_trigger_timing": "实验 B·预警触发时机",
+    "C_chain_breaks": "实验 C·转移链条断点消融",
+}
+
+
 def run_named_experiments(
     seeds: list[int] | None = None,
     population: int = 2000,
@@ -162,13 +169,14 @@ def interpret_experiment(name: str, summary: dict[str, Any]) -> list[str]:
     notes: list[str] = []
     if not summary:
         return notes
+    label = EXPERIMENT_LABELS.get(name, name)
     best_safe = max(summary, key=lambda p: summary[p]["safe_before_danger_rate"]["mean"])
     best_closure = max(summary, key=lambda p: summary[p]["response_closure_rate"]["mean"])
     lowest_gap = min(summary, key=lambda p: abs(summary[p]["group_safety_gap"]["mean"]))
-    notes.append(f"{name}: highest simulated safe-before-danger rate is {best_safe}.")
-    notes.append(f"{name}: strongest response closure is {best_closure}.")
-    notes.append(f"{name}: closest-to-zero group safety gap is {lowest_gap}.")
-    notes.append("These are conditional simulation results, not claims of real-world causal proof.")
+    notes.append(f"{label}：仿真安全转移率最高的是 {best_safe}。")
+    notes.append(f"{label}：闭环响应最强的是 {best_closure}。")
+    notes.append(f"{label}：群体公平缺口最接近零的是 {lowest_gap}。")
+    notes.append("以上均为条件性仿真结果，不构成对现实世界的因果证明。")
     return notes
 
 

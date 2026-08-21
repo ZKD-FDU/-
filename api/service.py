@@ -33,13 +33,13 @@ def health() -> dict[str, Any]:
 def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     population = int(payload.get("population", 2000))
     if population < 50:
-        return {"valid": False, "reason": "population must be at least 50 for meaningful simulation"}
+        return {"valid": False, "reason": "人口数量至少为 50 才能进行有效仿真"}
     if population > 5000:
-        return {"valid": False, "reason": "MVP population limit is 5000"}
+        return {"valid": False, "reason": "当前版本人口上限为 5000"}
     case_id = payload.get("case_id")
     case_context = build_case_context(case_id) if case_id else None
     if case_id and not case_context:
-        return {"valid": False, "reason": f"unknown training case: {case_id}"}
+        return {"valid": False, "reason": f"未知的训练案例：{case_id}"}
     scenario_config = normalize_scenario_config(payload.get("scenario_overrides", {}))
     error = validate_scenario_config(scenario_config)
     if error:
@@ -304,24 +304,25 @@ def normalize_scenario_config(overrides: dict[str, Any] | None) -> dict[str, Any
 
 def validate_scenario_config(config: dict[str, Any]) -> str | None:
     if not 0.05 <= config["vulnerable_ratio"] <= 0.85:
-        return "vulnerable_ratio must be between 0.05 and 0.85"
+        return "脆弱人口比例必须在 0.05 到 0.85 之间"
     if config["timestep_minutes"] not in {5, 10, 15}:
-        return "timestep_minutes must be 5, 10, or 15"
+        return "时间步长只能是 5、10 或 15 分钟"
     if not 0 <= config["warning_minute"] < config["danger_arrival_minute"]:
-        return "warning_minute must be before danger_arrival_minute"
+        return "预警时刻必须早于危险到达时刻"
     if not config["warning_minute"] <= config["evacuation_order_minute"] <= config["danger_arrival_minute"]:
-        return "evacuation_order_minute must sit between warning and danger arrival"
+        return "转移命令时刻必须位于预警时刻与危险到达时刻之间"
     if not config["warning_minute"] <= config["communication_failure_minute"] <= config["danger_arrival_minute"]:
-        return "communication_failure_minute must sit between warning and danger arrival"
+        return "通信失败时刻必须位于预警时刻与危险到达时刻之间"
     if not 0 <= config["bridge_closure_minute"] <= config["danger_arrival_minute"]:
-        return "bridge_closure_minute must not be after danger arrival"
+        return "桥梁封闭时刻不能晚于危险到达时刻"
     if not 0 <= config["communication_failure_rate"] <= 0.95:
-        return "communication_failure_rate must be between 0 and 0.95"
+        return "通信失败率必须在 0 到 0.95 之间"
     for key in {"vehicles", "care_workers", "stretchers"}:
         if not 1 <= config[key] <= 300:
-            return f"{key} must be between 1 and 300"
+            label = {"vehicles": "转运车辆", "care_workers": "照护人员", "stretchers": "担架数量"}[key]
+            return f"{label}必须在 1 到 300 之间"
     if not 50 <= config["shelter_beds"] <= 5000:
-        return "shelter_beds must be between 50 and 5000"
+        return "避难床位必须在 50 到 5000 之间"
     return None
 
 

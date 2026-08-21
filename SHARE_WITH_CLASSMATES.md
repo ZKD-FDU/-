@@ -5,13 +5,13 @@
 把这个仓库链接发给同学：
 
 ```text
-https://github.com/ZKD-FDU/hongce
+https://github.com/ZKD-FDU/-
 ```
 
 同学在自己的电脑上运行：
 
 ```bash
-git clone https://github.com/ZKD-FDU/hongce.git
+git clone https://github.com/ZKD-FDU/-.git hongce
 cd hongce
 python3 -m pip install -r requirements.txt
 python3 scripts/start_hongce.py
@@ -60,15 +60,16 @@ http://你的局域网IP:5173
 
 ## 运行环境
 
-- 推荐 Python 3.11 或更新版本。
+- 需要 Python 3.11 或更新版本（`pyproject.toml` 中要求 `>=3.11`）。
 - 不需要外部大模型 Key。
-- 不需要 Node/npm。
-- 只需要运行 `python3 -m pip install -r requirements.txt` 安装 Python 依赖。
+- 不需要 Node/npm，前端是纯静态页面，由 Python 自带的 `http.server` 提供。
+- 只需要运行 `python3 -m pip install -r requirements.txt` 安装 Python 依赖（pydantic、numpy、pandas）。
+- Windows 上如果提示找不到 `python3` 命令，把上面所有命令里的 `python3` 换成 `python` 即可。
 
 ## 他可以操作什么
 
-- 在“情景编辑器”选择 28 个应急管理部真实案例训练素材。
-- 修改合成县域参数：脆弱人口比例、预警时刻、转移命令、危险到达、通信失败率、车辆、照护人员、担架、避难床位等。
+- 在“情景编辑器 → 经典案例模拟”选择 28 个应急管理部真实案例训练素材。
+- 在“情景编辑器 → 县域模拟参数设定”修改合成县域参数：脆弱人口比例、预警时刻、转移命令、危险到达、通信失败率、车辆、照护人员、担架、避难床位等。
 - 点击“运行仿真”即时生成新的多智能体仿真结果。
 - 在“政策对比”运行 A/B/C 批量实验，比较 S0-S5 政策。
 - 查看事件流、叫应确认台、个体决策轨迹和复盘建议。

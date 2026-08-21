@@ -35,6 +35,7 @@ const state = {
     key_breakpoints: "",
     metric_candidates: ""
   },
+  editorSub: "params",
   busy: false
 };
 
@@ -200,6 +201,12 @@ function render() {
     input.addEventListener("input", updateConfig);
     input.addEventListener("change", updateConfig);
   });
+  document.querySelectorAll("[data-editor-sub]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.editorSub = button.dataset.editorSub;
+      render();
+    });
+  });
   document.querySelectorAll("[data-case-id]").forEach((button) => {
     button.addEventListener("click", async () => {
       setBusy(true, "正在载入案例模板...");
@@ -283,37 +290,20 @@ function overview() {
 }
 
 function editor() {
+  const sub = state.editorSub || "params";
+  return `<div class="view">
+    <div class="subtabs">
+      <button data-editor-sub="params" class="${sub === "params" ? "active" : ""}">县域模拟参数设定</button>
+      <button data-editor-sub="cases" class="${sub === "cases" ? "active" : ""}">经典案例模拟（${state.cases.length || 28} 个案例）</button>
+    </div>
+    ${sub === "params" ? editorParams() : editorCases()}
+  </div>`;
+}
+
+function editorParams() {
   const selected = state.selectedCase;
-  const scenario = state.caseScenario;
-  const cases = state.cases.length ? state.cases : [];
   const cfg = state.scenarioConfig;
-  return `<div class="view"><section><h2>真实案例训练库</h2>
-    <div class="case-tools">
-      <label>检索案例<input id="case-search" value="" placeholder="养老、桥梁、工地、郑州..." /></label>
-      <span>${cases.length} 个候选案例</span>
-    </div>
-    <div class="case-grid">
-      <div class="case-list">
-        ${cases.map((item) => `<button data-case-id="${escapeHtml(item.case_id)}" class="${selected?.case_id === item.case_id ? "selected" : ""}">
-          <strong>${escapeHtml(item.case_id)}</strong>
-          <span>${escapeHtml(item.case_name)}</span>
-          <small>${escapeHtml(item.scenario_class)}</small>
-        </button>`).join("")}
-      </div>
-      <div class="case-detail">
-        <h2>${escapeHtml(selected?.case_name || "选择案例")}</h2>
-        ${row("案例编号", selected?.case_id || "-")}
-        ${row("情景类型", selected?.scenario_class || "-")}
-        ${row("影响场所", (selected?.affected_setting || []).join("、") || "-")}
-        ${row("真实伤亡/死失", selected?.observed_outcomes?.deaths_or_dead_missing || "未抽取")}
-        ${row("直接经济损失", selected?.observed_outcomes?.direct_economic_loss || "未抽取")}
-        <div class="tag-band">${(selected?.failure_modes || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
-        <div class="tag-band policy-tags">${(scenario?.recommended_policies || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
-      </div>
-    </div>
-    </section><div class="view two nested"><section><h2>政策方案</h2><div class="policy-list">
-    ${policies.map(([id, name, short]) => `<div class="policy-option"><strong>${id} · ${name}</strong><span>${short}</span></div>`).join("")}
-    </div></section><section><h2>合成县域设定</h2><div class="form-grid">
+  return `<section><h2>合成县域设定</h2><div class="form-grid">
       <label>案例模板<input value="${escapeHtml(selected?.case_id || "未选择")}" readonly /></label>
       <label>训练来源<input value="应急管理部报告" readonly /></label>
       <label>脆弱人口比例<span class="live-value" data-config-value="vulnerable_ratio">${Math.round(Number(cfg.vulnerable_ratio) * 100)}%</span><input data-config-key="vulnerable_ratio" value="${escapeHtml(cfg.vulnerable_ratio)}" min="0.05" max="0.85" step="0.01" type="range" /></label>
@@ -331,7 +321,44 @@ function editor() {
       <label>照护人员<input data-config-key="care_workers" value="${escapeHtml(cfg.care_workers)}" min="1" max="300" step="1" type="number" /></label>
       <label>担架数量<input data-config-key="stretchers" value="${escapeHtml(cfg.stretchers)}" min="1" max="300" step="1" type="number" /></label>
       <label>避难床位<input data-config-key="shelter_beds" value="${escapeHtml(cfg.shelter_beds)}" min="50" max="5000" step="10" type="number" /></label>
-    </div></section></div></div>`;
+    </div></section>`;
+}
+
+function editorCases() {
+  const selected = state.selectedCase;
+  const scenario = state.caseScenario;
+  const cases = state.cases.length ? state.cases : [];
+  return `<section><h2>真实案例训练库</h2>
+    <div class="case-tools">
+      <label>检索案例<input id="case-search" value="" placeholder="养老、桥梁、工地、郑州..." /></label>
+      <span>${cases.length} 个候选案例</span>
+    </div>
+    <div class="case-grid">
+      <div class="case-list">
+        ${cases.map((item) => `<button data-case-id="${escapeHtml(item.case_id)}" class="${selected?.case_id === item.case_id ? "selected" : ""}">
+          <strong>${escapeHtml(item.case_id)}</strong>
+          <span>${escapeHtml(item.case_name)}</span>
+          <small>${escapeHtml(item.scenario_class)}</small>
+        </button>`).join("")}
+      </div>
+      <div class="case-detail">
+        <h2>${escapeHtml(selected?.case_name || "选择案例")}</h2>
+        ${row("案例编号", selected?.case_id || "-")}
+        ${row("情景类型", selected?.scenario_class || "-")}
+        ${row("致灾触发", (selected?.hazard_trigger || []).join("、") || "-")}
+        ${row("影响场所", (selected?.affected_setting || []).join("、") || "-")}
+        ${row("行动者链", (selected?.actor_chain || []).join(" → ") || "-")}
+        ${row("自下而上信号", (selected?.bottom_up_signals || []).join("、") || "-")}
+        ${row("干预点", (selected?.intervention_points || []).join("、") || "-")}
+        ${row("状态机", (scenario?.state_machine || []).join(" → ") || "-")}
+        ${row("指标候选", (selected?.metric_candidates || []).join("、") || "-")}
+        ${row("真实伤亡/死失", selected?.observed_outcomes?.deaths_or_dead_missing || "未抽取")}
+        ${row("直接经济损失", selected?.observed_outcomes?.direct_economic_loss || "未抽取")}
+        <div class="tag-band">${(selected?.failure_modes || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+        <div class="tag-band policy-tags">${(scenario?.recommended_policies || []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+      </div>
+    </div>
+    </section>`;
 }
 
 function timeline() {

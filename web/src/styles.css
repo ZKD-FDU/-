@@ -137,6 +137,29 @@ h2 {
   flex-wrap: wrap;
 }
 
+.subtabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subtabs button {
+  border: 1px solid #cfd8dc;
+  background: #f9fbfb;
+  border-radius: 6px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #4c5960;
+}
+
+.subtabs button.active,
+.subtabs button:hover {
+  border-color: #1b6b6f;
+  background: #eef8f7;
+  color: #17323a;
+}
+
 label {
   display: grid;
   gap: 5px;
