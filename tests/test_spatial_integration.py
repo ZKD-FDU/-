@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from api import service
+from hongce.spatial import derive_scenario_overrides, spatial_context
+
+
+SPATIAL_PACKAGE = {
+    "label": "SYNTHETIC_SPATIAL",
+    "package_id": "test-qgis-package",
+    "places": [
+        {"id": "north_valley", "population": 220, "vulnerable_population": 90, "risk_score": 0.82},
+        {"id": "qingyuan_town", "population": 530, "vulnerable_population": 110, "risk_score": 0.34},
+        {"id": "south_valley", "population": 180, "vulnerable_population": 70, "risk_score": 0.68},
+    ],
+    "shelters": [
+        {"id": "school", "capacity": 620},
+        {"id": "gym", "capacity": 180},
+    ],
+    "coverage": {"coverage_rate": 0.667, "uncovered_place_count": 1},
+    "routes": [
+        {"origin_id": "north_valley", "shelter_id": "school", "travel_minutes": 72, "crosses_high_risk": True, "bridge_exposure_score": 0.8},
+        {"origin_id": "qingyuan_town", "shelter_id": "school", "travel_minutes": 28, "crosses_high_risk": False, "bridge_exposure_score": 0.2},
+        {"origin_id": "south_valley", "shelter_id": "gym", "travel_minutes": 46, "crosses_high_risk": True, "bridge_exposure_score": 0.4},
+    ],
+    "resources": {"timestep_minutes": 5, "vehicles": 12, "care_workers": 24, "stretchers": 10},
+}
+
+
+class SpatialIntegrationTest(unittest.TestCase):
+    def test_spatial_package_derives_simulation_overrides(self) -> None:
+        context = spatial_context(SPATIAL_PACKAGE)
+        overrides = context["scenario_overrides"]
+        self.assertEqual(context["summary"]["total_shelter_capacity"], 800)
+        self.assertEqual(overrides["shelter_beds"], 800)
+        self.assertEqual(overrides["vehicles"], 12)
+        self.assertGreater(overrides["communication_failure_rate"], 0.3)
+        self.assertLess(overrides["warning_minute"], overrides["danger_arrival_minute"])
+
+    def test_api_run_can_use_spatial_package_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "spatial_package.json").write_text(json.dumps(SPATIAL_PACKAGE), encoding="utf-8")
+            derived = derive_scenario_overrides(SPATIAL_PACKAGE)
+            response = service.run_simulation(
+                {
+                    "policy_id": "S5",
+                    "seed": 20260821,
+                    "population": 300,
+                    "spatial_package_path": str(root),
+                    "output_dir": str(root / "outputs"),
+                }
+            )
+            self.assertEqual(response["status"], "succeeded")
+            self.assertEqual(response["scenario_config"]["shelter_beds"], derived["shelter_beds"])
+            self.assertEqual(response["spatial_context"]["package_id"], "test-qgis-package")
+            self.assertGreaterEqual(response["metrics"]["safe_before_danger_rate"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

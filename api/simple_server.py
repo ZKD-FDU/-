@@ -25,6 +25,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/health":
             self.reply(service.health())
             return
+        if path == "/spatial/package":
+            self.reply(service.get_spatial_package(first(query, "path")))
+            return
         if path == "/cases":
             self.reply(
                 service.list_cases(
@@ -66,6 +69,9 @@ class Handler(BaseHTTPRequestHandler):
         payload = self.read_json()
         if path == "/scenarios/validate":
             self.reply(service.validate_scenario(payload))
+            return
+        if path == "/spatial/derive-scenario":
+            self.reply(service.derive_spatial_scenario(payload))
             return
         if path == "/simulations/run":
             self.reply(service.run_simulation(payload))

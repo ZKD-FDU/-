@@ -11,6 +11,7 @@ from hongce.engine import run_policy
 from hongce.experiments import run_named_experiments, run_policy_batch, write_explanation_pack
 from hongce.models import PolicyId
 from hongce.scenario import HazardConfig, ResourceProfile, SyntheticScenario, generate_qingyuan
+from hongce.spatial import derive_scenario_overrides, load_spatial_package, spatial_context, summarize_spatial_package
 
 
 RUN_CACHE: dict[str, dict[str, Any]] = {}
@@ -40,7 +41,11 @@ def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
     case_context = build_case_context(case_id) if case_id else None
     if case_id and not case_context:
         return {"valid": False, "reason": f"未知的训练案例：{case_id}"}
-    scenario_config = normalize_scenario_config(payload.get("scenario_overrides", {}))
+    try:
+        spatial = load_optional_spatial_context(payload)
+    except (FileNotFoundError, ValueError) as error:
+        return {"valid": False, "reason": str(error)}
+    scenario_config = normalize_scenario_config(merge_spatial_overrides(payload.get("scenario_overrides", {}), spatial))
     error = validate_scenario_config(scenario_config)
     if error:
         return {"valid": False, "reason": error}
@@ -50,6 +55,7 @@ def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         "population": population,
         "case_context": case_context,
         "scenario_config": scenario_config,
+        "spatial_context": spatial,
     }
 
 
@@ -61,8 +67,12 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
     case_id = payload.get("case_id")
     case_context = build_case_context(case_id) if case_id else None
     if case_id and not case_context:
-        return {"status": "failed", "error": f"unknown training case: {case_id}"}
-    scenario_config = normalize_scenario_config(payload.get("scenario_overrides", {}))
+        return {"status": "failed", "error": f"未知的训练案例：{case_id}"}
+    try:
+        spatial = load_optional_spatial_context(payload)
+    except (FileNotFoundError, ValueError) as error:
+        return {"status": "failed", "error": str(error)}
+    scenario_config = normalize_scenario_config(merge_spatial_overrides(payload.get("scenario_overrides", {}), spatial))
     error = validate_scenario_config(scenario_config)
     if error:
         return {"status": "failed", "error": error}
@@ -71,6 +81,8 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
     data = result.to_dict()
     if case_context:
         data["case_context"] = case_context
+    if spatial:
+        data["spatial_context"] = spatial
     data["scenario_config"] = scenario_config
     RUN_CACHE[result.run.id] = data
     write_explanation_pack(result, output_dir)
@@ -80,8 +92,35 @@ def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
         "metrics": data["metrics"],
         "output_paths": result.run.output_paths,
         "case_context": case_context,
+        "spatial_context": spatial,
         "scenario_config": scenario_config,
     }
+
+
+def get_spatial_package(path: str) -> dict[str, Any]:
+    try:
+        data = load_spatial_package(path)
+    except (FileNotFoundError, ValueError) as error:
+        return {"error": str(error)}
+    return spatial_context(data)
+
+
+def derive_spatial_scenario(payload: dict[str, Any]) -> dict[str, Any]:
+    path = payload.get("spatial_package_path") or payload.get("path")
+    package = payload.get("spatial_package")
+    try:
+        data = package if isinstance(package, dict) else load_spatial_package(path)
+    except (FileNotFoundError, TypeError, ValueError) as error:
+        return {"valid": False, "error": str(error)}
+    try:
+        return {
+            "valid": True,
+            "summary": summarize_spatial_package(data),
+            "scenario_overrides": derive_scenario_overrides(data),
+            "spatial_context": spatial_context(data),
+        }
+    except ValueError as error:
+        return {"valid": False, "error": str(error)}
 
 
 def get_simulation(run_id: str) -> dict[str, Any]:
@@ -260,6 +299,22 @@ def searchable_case_text(case: dict[str, Any]) -> str:
         " ".join(case.get("metric_candidates", [])),
     ]
     return " ".join(parts)
+
+
+def load_optional_spatial_context(payload: dict[str, Any]) -> dict[str, Any] | None:
+    path = payload.get("spatial_package_path")
+    package = payload.get("spatial_package")
+    if isinstance(package, dict):
+        return spatial_context(package)
+    if not path:
+        return None
+    return spatial_context(load_spatial_package(path))
+
+
+def merge_spatial_overrides(overrides: dict[str, Any] | None, spatial: dict[str, Any] | None) -> dict[str, Any]:
+    merged = dict(spatial.get("scenario_overrides", {}) if spatial else {})
+    merged.update(overrides or {})
+    return merged
 
 
 DEFAULT_SCENARIO_CONFIG: dict[str, Any] = {
