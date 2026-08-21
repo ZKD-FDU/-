@@ -1,0 +1,42 @@
+{
+  "type": "FeatureCollection",
+  "name": "shelters",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "school_shelter",
+        "name": "第二中学避难点",
+        "capacity": 620
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.46,
+          31.248
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "gym_shelter",
+        "name": "县体育馆避难点",
+        "capacity": 180
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.405,
+          31.225
+        ]
+      }
+    }
+  ]
+}

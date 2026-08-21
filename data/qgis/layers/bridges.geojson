@@ -1,0 +1,42 @@
+{
+  "type": "FeatureCollection",
+  "name": "bridges",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bridge_east",
+        "name": "东桥",
+        "risk_score": 0.8
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.372,
+          31.272
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "bridge_south",
+        "name": "南涵洞",
+        "risk_score": 0.45
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          121.416,
+          31.214
+        ]
+      }
+    }
+  ]
+}
