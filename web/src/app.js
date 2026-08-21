@@ -11,6 +11,32 @@ const policies = [
 
 const tabs = ["县域态势总览", "情景编辑器", "实时推演", "叫应确认台", "政策对比", "个体与事件解释", "复盘与建议"];
 
+const spatialMap = {
+  places: [
+    { id: "north_valley", name: "北谷村", type: "village", population: 220, vulnerable_population: 90, risk_score: 0.82, x: 121.318, y: 31.305 },
+    { id: "qingyuan_town", name: "清源镇", type: "town", population: 530, vulnerable_population: 110, risk_score: 0.82, x: 121.392, y: 31.258 },
+    { id: "south_valley", name: "南谷村", type: "village", population: 180, vulnerable_population: 70, risk_score: 0.82, x: 121.428, y: 31.205 },
+    { id: "nursing_home", name: "青松养老照料中心", type: "care", population: 69, vulnerable_population: 55, risk_score: 0.82, x: 121.346, y: 31.282 }
+  ],
+  shelters: [
+    { id: "school_shelter", name: "第二中学避难点", capacity: 620, x: 121.46, y: 31.248 },
+    { id: "gym_shelter", name: "县体育馆避难点", capacity: 180, x: 121.405, y: 31.225 }
+  ],
+  bridges: [
+    { id: "bridge_east", name: "东桥", risk_score: 0.8, x: 121.372, y: 31.272 },
+    { id: "bridge_south", name: "南涵洞", risk_score: 0.45, x: 121.416, y: 31.214 }
+  ],
+  riskZones: [
+    { id: "floodplain_01", name: "河湾漫溢区", risk_score: 0.82, polygon: [[121.3, 31.32], [121.47, 31.29], [121.45, 31.22], [121.33, 31.2], [121.3, 31.32]] }
+  ],
+  roads: [
+    { id: "road_north_school", name: "北谷-学校道路", coordinates: [[121.318, 31.305], [121.36, 31.29], [121.46, 31.248]] },
+    { id: "road_town_school", name: "清源镇-学校道路", coordinates: [[121.392, 31.258], [121.46, 31.248]] },
+    { id: "road_south_gym", name: "南谷-体育馆道路", coordinates: [[121.428, 31.205], [121.405, 31.225]] },
+    { id: "road_nursing_school", name: "养老院-学校道路", coordinates: [[121.346, 31.282], [121.37, 31.27], [121.46, 31.248]] }
+  ]
+};
+
 const state = {
   active: tabs[0],
   run: null,
@@ -272,11 +298,7 @@ function overview() {
       ${metric("平均排队分钟", num(m.resource_queue_minutes_mean), "neutral")}
     </section>
     <section class="map-band">
-      <div class="county-map">
-        <span class="node valley">北谷村</span><span class="node town">清源镇</span>
-        <span class="node shelter">学校避难点</span><span class="node care">养老院</span>
-        <span class="waterline"></span><span class="roadline"></span>
-      </div>
+      ${terrainMap(m)}
       <div class="side-table">
         <h2>最新运行</h2>
         ${row("训练案例", caseContext?.case_id || "未选择")}
@@ -287,6 +309,127 @@ function overview() {
       </div>
     </section>
   </div>`;
+}
+
+function terrainMap(metrics = {}) {
+  const bounds = mapBounds();
+  const project = ([lon, lat]) => {
+    const width = 1000;
+    const height = 620;
+    const pad = 70;
+    const x = pad + ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * (width - pad * 2);
+    const y = height - pad - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * (height - pad * 2);
+    return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+  };
+  const path = (coords) => coords.map((coord, index) => `${index ? "L" : "M"}${project(coord).join(" ")}`).join(" ");
+  const closedPath = (coords) => `${path(coords)} Z`;
+  const roadPaths = spatialMap.roads.map((road) => {
+    const risk = road.id.includes("north") || road.id.includes("nursing");
+    return `<path class="map-road ${risk ? "risk-route" : ""}" d="${path(road.coordinates)}"><title>${escapeHtml(road.name)}</title></path>`;
+  }).join("");
+  const riskZones = spatialMap.riskZones.map((zone) => `<path class="risk-zone" d="${closedPath(zone.polygon)}"><title>${escapeHtml(zone.name)} · 风险 ${Math.round(zone.risk_score * 100)}%</title></path>`).join("");
+  const contours = terrainContours();
+  const villages = spatialMap.places.map((place) => {
+    const [x, y] = project([place.x, place.y]);
+    const vulnerable = Math.round((place.vulnerable_population / place.population) * 100);
+    return `<g class="map-point ${place.type}" transform="translate(${x} ${y})">
+      <circle r="${place.type === "town" ? 10 : place.type === "care" ? 9 : 8}"></circle>
+      <text x="14" y="-10">${escapeHtml(place.name)}</text>
+      <text class="map-subtext" x="14" y="8">人口 ${place.population} · 脆弱 ${vulnerable}%</text>
+    </g>`;
+  }).join("");
+  const shelters = spatialMap.shelters.map((shelter) => {
+    const [x, y] = project([shelter.x, shelter.y]);
+    return `<g class="map-point shelter" transform="translate(${x} ${y})">
+      <rect x="-9" y="-9" width="18" height="18" rx="3"></rect>
+      <text x="15" y="-8">${escapeHtml(shelter.name)}</text>
+      <text class="map-subtext" x="15" y="10">容量 ${shelter.capacity} 人</text>
+    </g>`;
+  }).join("");
+  const bridges = spatialMap.bridges.map((bridge) => {
+    const [x, y] = project([bridge.x, bridge.y]);
+    return `<g class="map-bridge ${bridge.risk_score > 0.7 ? "high" : ""}" transform="translate(${x} ${y})">
+      <path d="M-12 0 L12 0 M-8 -5 L-8 5 M0 -5 L0 5 M8 -5 L8 5"></path>
+      <text x="14" y="-6">${escapeHtml(bridge.name)}</text>
+    </g>`;
+  }).join("");
+  const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
+  const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
+  return `<div class="terrain-panel">
+    <div class="terrain-toolbar">
+      <div><strong>QGIS 空间态势图</strong><span>地形底图 · 风险区 · 转移路线 · 避难点覆盖</span></div>
+      <div class="map-badges"><span>EPSG:4326</span><span>离线空间包</span><span>安全转移 ${safeRate}%</span></div>
+    </div>
+    <svg class="terrain-map" viewBox="0 0 1000 620" role="img" aria-label="洪策 QGIS 地形态势图">
+      <defs>
+        <linearGradient id="terrainBase" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#d9e8d2" />
+          <stop offset="38%" stop-color="#b8d1b0" />
+          <stop offset="68%" stop-color="#d9c58f" />
+          <stop offset="100%" stop-color="#8f846c" />
+        </linearGradient>
+        <radialGradient id="ridgeLight" cx="30%" cy="22%" r="65%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.62)" />
+          <stop offset="60%" stop-color="rgba(255,255,255,0.08)" />
+          <stop offset="100%" stop-color="rgba(50,54,44,0.22)" />
+        </radialGradient>
+        <filter id="terrainShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#31413c" flood-opacity="0.22" />
+        </filter>
+      </defs>
+      <rect class="terrain-bg" x="0" y="0" width="1000" height="620"></rect>
+      <path class="terrain-hillshade hill-a" d="M20 500 C150 390 205 225 360 210 C520 194 600 100 780 68 C900 48 980 90 1010 130 L1010 620 L20 620 Z"></path>
+      <path class="terrain-hillshade hill-b" d="M-40 210 C120 260 238 120 405 142 C548 160 660 260 806 235 C918 216 965 168 1035 198 L1035 -20 L-40 -20 Z"></path>
+      <path class="river" d="M-20 136 C122 173 200 239 326 250 C458 262 565 342 690 372 C812 403 902 480 1025 510"></path>
+      ${contours}
+      ${riskZones}
+      ${roadPaths}
+      ${bridges}
+      ${villages}
+      ${shelters}
+      <g class="north-arrow" transform="translate(925 74)">
+        <path d="M0 -34 L13 16 L0 8 L-13 16 Z"></path>
+        <text y="42">N</text>
+      </g>
+    </svg>
+    <div class="terrain-footer">
+      <span><i class="legend risk"></i>高风险漫溢区</span>
+      <span><i class="legend road"></i>转移路线</span>
+      <span><i class="legend bridge"></i>桥梁/涵洞断点</span>
+      <span><i class="legend shelter"></i>避难点</span>
+      <span>资源排队 ${queue} 分钟</span>
+    </div>
+  </div>`;
+}
+
+function mapBounds() {
+  const coords = [
+    ...spatialMap.places.map((item) => [item.x, item.y]),
+    ...spatialMap.shelters.map((item) => [item.x, item.y]),
+    ...spatialMap.bridges.map((item) => [item.x, item.y]),
+    ...spatialMap.riskZones.flatMap((item) => item.polygon),
+    ...spatialMap.roads.flatMap((item) => item.coordinates)
+  ];
+  const lons = coords.map(([lon]) => lon);
+  const lats = coords.map(([, lat]) => lat);
+  return {
+    minLon: Math.min(...lons) - 0.015,
+    maxLon: Math.max(...lons) + 0.015,
+    minLat: Math.min(...lats) - 0.015,
+    maxLat: Math.max(...lats) + 0.015
+  };
+}
+
+function terrainContours() {
+  const lines = [
+    "M18 492 C156 430 194 340 318 332 C488 320 588 234 744 212 C870 194 942 226 1012 282",
+    "M30 430 C160 378 228 292 346 294 C482 296 560 208 720 168 C842 136 930 152 1018 210",
+    "M-10 368 C118 330 220 252 342 260 C486 268 590 186 744 134 C856 96 940 104 1022 158",
+    "M12 306 C132 290 220 210 360 218 C520 228 628 154 760 100 C850 62 934 62 1020 112",
+    "M65 548 C190 502 310 432 462 438 C606 444 716 394 848 350 C922 326 980 328 1028 360",
+    "M110 588 C235 548 338 496 474 500 C640 506 740 456 890 420"
+  ];
+  return lines.map((d, index) => `<path class="contour contour-${index % 3}" d="${d}"></path>`).join("");
 }
 
 function editor() {

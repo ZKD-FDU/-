@@ -268,7 +268,8 @@ section,
 .metric,
 .policy-card,
 .notice,
-.side-table {
+.side-table,
+.terrain-panel {
   background: #fff;
   border: 1px solid #d9e0e3;
   border-radius: 8px;
@@ -335,55 +336,206 @@ section {
   padding: 0;
 }
 
-.county-map {
-  position: relative;
+.terrain-panel {
   overflow: hidden;
-  min-height: 420px;
-  background:
-    linear-gradient(145deg, rgba(75, 125, 99, 0.14), transparent 35%),
-    linear-gradient(25deg, rgba(49, 103, 151, 0.15), transparent 45%),
-    #f8fbfa;
-  border: 1px solid #d9e0e3;
-  border-radius: 8px;
+  min-width: 0;
 }
 
-.waterline,
-.roadline {
-  position: absolute;
+.terrain-toolbar {
+  min-height: 62px;
+  padding: 14px 16px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid #d9e0e3;
+  background: #f9fbfb;
+}
+
+.terrain-toolbar strong {
   display: block;
-  transform: rotate(-18deg);
+  font-size: 18px;
 }
 
-.waterline {
-  left: -30px;
-  top: 210px;
-  width: 110%;
-  height: 52px;
-  background: #8db7c7;
-  opacity: 0.75;
+.terrain-toolbar span,
+.terrain-footer {
+  color: #5d6a70;
+  font-size: 13px;
 }
 
-.roadline {
-  left: 12%;
-  top: 225px;
-  width: 78%;
-  border-top: 5px dashed #6f7d55;
+.map-badges {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.node {
-  position: absolute;
-  z-index: 2;
-  border-radius: 6px;
-  padding: 8px 10px;
-  background: white;
-  border: 1px solid #c4d0d4;
-  box-shadow: 0 3px 10px rgba(31, 47, 53, 0.1);
+.map-badges span {
+  border: 1px solid #cfdbd8;
+  background: #fff;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #3d4d4e;
 }
 
-.valley { left: 12%; top: 24%; }
-.town { right: 18%; top: 34%; }
-.shelter { right: 15%; bottom: 18%; }
-.care { left: 20%; bottom: 20%; }
+.terrain-map {
+  display: block;
+  width: 100%;
+  min-height: 430px;
+  background: #cbd8c0;
+}
+
+.terrain-bg {
+  fill: url("#terrainBase");
+}
+
+.terrain-hillshade {
+  fill: url("#ridgeLight");
+  opacity: 0.85;
+}
+
+.hill-b {
+  opacity: 0.48;
+}
+
+.contour {
+  fill: none;
+  stroke: rgba(73, 82, 65, 0.28);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 8;
+}
+
+.contour-1 {
+  stroke: rgba(73, 82, 65, 0.18);
+}
+
+.contour-2 {
+  stroke: rgba(109, 91, 60, 0.22);
+  stroke-width: 1.7;
+}
+
+.river {
+  fill: none;
+  stroke: rgba(56, 123, 151, 0.58);
+  stroke-width: 20;
+  stroke-linecap: round;
+  filter: url("#terrainShadow");
+}
+
+.risk-zone {
+  fill: rgba(170, 88, 54, 0.52);
+  stroke: rgba(117, 55, 38, 0.82);
+  stroke-width: 3;
+  filter: url("#terrainShadow");
+}
+
+.map-road {
+  fill: none;
+  stroke: #e9d8a6;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  filter: drop-shadow(0 2px 2px rgba(45, 56, 45, 0.25));
+}
+
+.map-road.risk-route {
+  stroke: #e3a75e;
+  stroke-dasharray: 16 9;
+}
+
+.map-point circle,
+.map-point rect {
+  stroke: white;
+  stroke-width: 3;
+  filter: drop-shadow(0 4px 5px rgba(24, 38, 39, 0.38));
+}
+
+.map-point text,
+.map-bridge text,
+.north-arrow text {
+  fill: #18262a;
+  font-size: 20px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.map-point .map-subtext {
+  fill: #405257;
+  font-size: 13px;
+  font-weight: 600;
+  stroke-width: 3;
+}
+
+.map-point.village circle {
+  fill: #f0b429;
+}
+
+.map-point.town circle {
+  fill: #1b6b6f;
+}
+
+.map-point.care circle {
+  fill: #9f5f80;
+}
+
+.map-point.shelter rect {
+  fill: #2c9b64;
+}
+
+.map-bridge path {
+  fill: none;
+  stroke: #374348;
+  stroke-width: 4;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+}
+
+.map-bridge.high path {
+  stroke: #9a4129;
+}
+
+.north-arrow path {
+  fill: #17202a;
+  stroke: white;
+  stroke-width: 2;
+}
+
+.north-arrow text {
+  text-anchor: middle;
+  font-size: 18px;
+}
+
+.terrain-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px 14px;
+  border-top: 1px solid #d9e0e3;
+  background: #f9fbfb;
+}
+
+.terrain-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend {
+  width: 22px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend.risk { background: #aa5836; }
+.legend.road { background: #e3a75e; }
+.legend.bridge { background: #374348; }
+.legend.shelter { background: #2c9b64; }
 
 .side-table {
   padding: 18px;
