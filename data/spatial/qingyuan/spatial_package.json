@@ -1,0 +1,146 @@
+{
+  "label": "SYNTHETIC_SPATIAL",
+  "package_id": "qgis-qingyuan",
+  "source_project": "data/qgis/hongce.qgz",
+  "method": {
+    "route_engine": "geojson_straight_line",
+    "coverage_minutes": 60,
+    "risk_overlay": "centroid/line bbox intersects risk zone bbox"
+  },
+  "places": [
+    {
+      "id": "north_valley",
+      "name": "北谷村",
+      "population": 220,
+      "vulnerable_population": 90,
+      "risk_score": 0.82,
+      "x": 121.318,
+      "y": 31.305
+    },
+    {
+      "id": "qingyuan_town",
+      "name": "清源镇",
+      "population": 530,
+      "vulnerable_population": 110,
+      "risk_score": 0.82,
+      "x": 121.392,
+      "y": 31.258
+    },
+    {
+      "id": "south_valley",
+      "name": "南谷村",
+      "population": 180,
+      "vulnerable_population": 70,
+      "risk_score": 0.82,
+      "x": 121.428,
+      "y": 31.205
+    },
+    {
+      "id": "nursing_home",
+      "name": "青松养老照料中心",
+      "population": 69,
+      "vulnerable_population": 55,
+      "risk_score": 0.82,
+      "x": 121.346,
+      "y": 31.282
+    }
+  ],
+  "shelters": [
+    {
+      "id": "school_shelter",
+      "name": "第二中学避难点",
+      "capacity": 620,
+      "x": 121.46,
+      "y": 31.248
+    },
+    {
+      "id": "gym_shelter",
+      "name": "县体育馆避难点",
+      "capacity": 180,
+      "x": 121.405,
+      "y": 31.225
+    }
+  ],
+  "risk_zones": [
+    {
+      "id": "floodplain_01",
+      "name": "河湾漫溢区",
+      "risk_score": 0.82
+    }
+  ],
+  "bridges": [
+    {
+      "id": "bridge_east",
+      "name": "东桥",
+      "risk_score": 0.8,
+      "x": 121.372,
+      "y": 31.272
+    },
+    {
+      "id": "bridge_south",
+      "name": "南涵洞",
+      "risk_score": 0.45,
+      "x": 121.416,
+      "y": 31.214
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-north_valley-gym_shelter",
+      "origin_id": "north_valley",
+      "shelter_id": "gym_shelter",
+      "distance_meters": 12145.3,
+      "travel_minutes": 29.1,
+      "risk_score": 0.82,
+      "bridge_exposure_score": 0.8,
+      "crosses_high_risk": true,
+      "route_engine": "geojson_straight_line"
+    },
+    {
+      "id": "route-qingyuan_town-gym_shelter",
+      "origin_id": "qingyuan_town",
+      "shelter_id": "gym_shelter",
+      "distance_meters": 3872.0,
+      "travel_minutes": 9.3,
+      "risk_score": 0.82,
+      "bridge_exposure_score": 0.0,
+      "crosses_high_risk": true,
+      "route_engine": "geojson_straight_line"
+    },
+    {
+      "id": "route-south_valley-gym_shelter",
+      "origin_id": "south_valley",
+      "shelter_id": "gym_shelter",
+      "distance_meters": 3119.2,
+      "travel_minutes": 7.5,
+      "risk_score": 0.82,
+      "bridge_exposure_score": 0.45,
+      "crosses_high_risk": true,
+      "route_engine": "geojson_straight_line"
+    },
+    {
+      "id": "route-nursing_home-gym_shelter",
+      "origin_id": "nursing_home",
+      "shelter_id": "gym_shelter",
+      "distance_meters": 8463.2,
+      "travel_minutes": 20.3,
+      "risk_score": 0.82,
+      "bridge_exposure_score": 0.8,
+      "crosses_high_risk": true,
+      "route_engine": "geojson_straight_line"
+    }
+  ],
+  "coverage": {
+    "coverage_minutes": 60,
+    "covered_place_count": 4,
+    "uncovered_place_count": 0,
+    "coverage_rate": 1.0,
+    "total_shelter_capacity": 800
+  },
+  "resources": {
+    "timestep_minutes": 5,
+    "vehicles": 0,
+    "care_workers": 0,
+    "stretchers": 0
+  }
+}

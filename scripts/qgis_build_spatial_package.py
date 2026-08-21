@@ -34,7 +34,6 @@ try:  # pragma: no cover - only available in QGIS Python.
         QgsProject,
         QgsWkbTypes,
     )
-    import processing
 except ModuleNotFoundError:  # pragma: no cover
     QgsApplication = None
     QgsDistanceArea = None
@@ -43,6 +42,11 @@ except ModuleNotFoundError:  # pragma: no cover
     QgsProject = None
     QgsWkbTypes = None
     processing = None
+else:  # pragma: no cover - depends on QGIS plugin path.
+    try:
+        import processing
+    except ModuleNotFoundError:
+        processing = None
 
 
 def main() -> int:
