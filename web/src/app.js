@@ -97,6 +97,7 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const content = $("#content");
+let threeAnimationFrame = null;
 
 function pct(value) {
   return `${Math.round(Number(value || 0) * 1000) / 10}%`;
@@ -338,6 +339,7 @@ function render() {
     "复盘与建议": review
   };
   content.innerHTML = route[state.active]();
+  hydrateScenario3D();
   hydrateStandardMap();
   const experimentButton = $("#run-experiment");
   if (experimentButton) experimentButton.addEventListener("click", runExperiment);
@@ -678,6 +680,7 @@ function terrainMap(metrics = {}) {
       <div class="map-badges"><span>t=${live.minute}′</span><span class="${live.commsDegraded ? "bad" : "good"}">通信${live.commsDegraded ? "受损" : "正常"}</span><span class="${live.bridgeClosed ? "bad" : "good"}">桥涵${live.bridgeClosed ? "封闭" : "可通行"}</span><span>安全转移 ${safeRate}%</span></div>
     </div>
     <div class="command-map-frame">
+      <div id="scenario-3d-map" class="scenario-3d-map" aria-label="三维洪涝转移数字孪生场景"></div>
       <div id="standard-geo-map" class="standard-geo-map" aria-label="标准地理底图叠加 QGIS 实时空间态势"></div>
       <div class="map-vignette"></div>
       ${commandHud(live, metrics, spatial)}
@@ -734,6 +737,261 @@ function terrainMap(metrics = {}) {
       <span>资源排队 ${queue} 分钟</span>
     </div>
   </div>`;
+}
+
+async function hydrateScenario3D() {
+  const panel = $("#terrain-panel");
+  const container = $("#scenario-3d-map");
+  if (!panel || !container) {
+    if (threeAnimationFrame) {
+      cancelAnimationFrame(threeAnimationFrame);
+      threeAnimationFrame = null;
+    }
+    return;
+  }
+  try {
+    const THREE = await import("https://unpkg.com/three@0.160.0/build/three.module.js");
+    renderScenario3D(THREE, panel, container);
+  } catch {
+    panel.classList.remove("three-ready");
+  }
+}
+
+function renderScenario3D(THREE, panel, container) {
+  if (threeAnimationFrame) {
+    cancelAnimationFrame(threeAnimationFrame);
+    threeAnimationFrame = null;
+  }
+  const spatial = normalizedSpatialMap();
+  const live = liveSpatialState(spatial);
+  const mode = state.mapMode || "hydrology";
+  const bounds = mapBounds(spatial);
+  const width = container.clientWidth || 960;
+  const height = container.clientHeight || 560;
+  container.innerHTML = "";
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(width, height);
+  renderer.setClearColor(0x061321, 1);
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x061321, 54, 130);
+  const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 220);
+  camera.position.set(0, 34, 58);
+
+  const root = new THREE.Group();
+  root.rotation.x = -0.62;
+  root.rotation.y = -0.25;
+  scene.add(root);
+
+  const keyLight = new THREE.DirectionalLight(0xdff6ff, 2.6);
+  keyLight.position.set(-18, 36, 28);
+  scene.add(keyLight);
+  scene.add(new THREE.AmbientLight(0x5ba8d6, 1.05));
+  const rimLight = new THREE.PointLight(0x2bd8ff, 1.4, 120);
+  rimLight.position.set(18, 18, -22);
+  scene.add(rimLight);
+
+  const project = ([lon, lat]) => {
+    const x = ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon) - 0.5) * 82;
+    const z = -((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat) - 0.5) * 54;
+    return [x, z];
+  };
+  const elevationAt = (x, z) => {
+    const nx = x / 82;
+    const nz = z / 54;
+    return 2.1 + nx * -5.6 + nz * -2.8 + Math.sin(x * 0.19) * 0.75 + Math.cos(z * 0.22) * 0.55;
+  };
+
+  const terrain = buildTerrainMesh(THREE, elevationAt);
+  root.add(terrain);
+
+  for (const zone of spatial.risk_zones) root.add(buildPolygonMesh(THREE, zone.polygon.map(project), mode === "simulation" ? 0.34 : 0.5, elevationAt));
+  for (const river of spatial.rivers) root.add(buildTube(THREE, river.coordinates.map(project), elevationAt, river.kind === "tributary_culvert" ? 0.15 : 0.28, 0x27d8ff, 0.9));
+  for (const route of spatial.routes) {
+    const risky = route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65;
+    const color = risky ? 0xffb24e : 0xf4de73;
+    root.add(buildTube(THREE, route.coordinates.map(project), elevationAt, mode === "simulation" || mode === "plan" ? 0.14 : 0.09, color, 0.95));
+    if (mode === "simulation" || mode === "plan") root.add(buildMovingDot(THREE, route.coordinates.map(project), elevationAt, risky));
+  }
+
+  for (const place of spatial.places) {
+    const [x, z] = project([place.x, place.y]);
+    const marker = buildPlaceMarker(THREE, place, x, elevationAt(x, z), z, mode);
+    root.add(marker);
+  }
+  for (const shelter of spatial.shelters) {
+    const [x, z] = project([shelter.x, shelter.y]);
+    root.add(buildShelterMarker(THREE, shelter, x, elevationAt(x, z), z));
+  }
+  for (const bridge of spatial.bridges) {
+    const [x, z] = project([bridge.x, bridge.y]);
+    root.add(buildBridgeMarker(THREE, bridge, x, elevationAt(x, z), z, live.bridgeClosed));
+  }
+
+  root.add(buildCompass(THREE));
+  panel.classList.add("three-ready");
+
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  renderer.domElement.addEventListener("pointerdown", (event) => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    renderer.domElement.setPointerCapture(event.pointerId);
+  });
+  renderer.domElement.addEventListener("pointermove", (event) => {
+    if (!dragging) return;
+    root.rotation.y += (event.clientX - lastX) * 0.006;
+    root.rotation.x = Math.max(-1.02, Math.min(-0.35, root.rotation.x + (event.clientY - lastY) * 0.004));
+    lastX = event.clientX;
+    lastY = event.clientY;
+  });
+  renderer.domElement.addEventListener("pointerup", () => {
+    dragging = false;
+  });
+  renderer.domElement.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const scale = event.deltaY > 0 ? 1.08 : 0.92;
+    camera.position.multiplyScalar(scale);
+    camera.position.clampLength(34, 92);
+  }, { passive: false });
+
+  const clock = new THREE.Clock();
+  function animate() {
+    const t = clock.getElapsedTime();
+    root.traverse((child) => {
+      if (child.userData.float) child.position.y = child.userData.baseY + Math.sin(t * 1.4 + child.userData.phase) * 0.22;
+      if (child.userData.pulse) child.material.opacity = 0.38 + Math.sin(t * 1.8 + child.userData.phase) * 0.08;
+      if (child.userData.movePath) {
+        const path = child.userData.movePath;
+        const idx = Math.floor((t * 0.35 + child.userData.phase) % (path.length - 1));
+        const a = path[idx];
+        const b = path[idx + 1];
+        const f = (t * 0.35 + child.userData.phase) % 1;
+        child.position.set(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f);
+      }
+    });
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+    threeAnimationFrame = requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+function buildTerrainMesh(THREE, elevationAt) {
+  const geometry = new THREE.PlaneGeometry(86, 58, 86, 58);
+  geometry.rotateX(-Math.PI / 2);
+  const colors = [];
+  const color = new THREE.Color();
+  const pos = geometry.attributes.position;
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const y = elevationAt(x, z);
+    pos.setY(i, y);
+    const mix = Math.max(0, Math.min(1, (y + 2) / 9));
+    color.setRGB(0.08 + mix * 0.42, 0.29 + mix * 0.34, 0.2 + mix * 0.16);
+    colors.push(color.r, color.g, color.b);
+  }
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.computeVertexNormals();
+  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.02 }));
+}
+
+function buildPolygonMesh(THREE, points, opacity, elevationAt) {
+  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
+  const geometry = new THREE.ShapeGeometry(shape);
+  geometry.rotateX(Math.PI / 2);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xff7946, transparent: true, opacity, roughness: 0.42, metalness: 0.05, side: THREE.DoubleSide }));
+  mesh.position.y = Math.max(...points.map(([x, z]) => elevationAt(x, z))) + 0.34;
+  mesh.userData.pulse = true;
+  mesh.userData.phase = points.length;
+  return mesh;
+}
+
+function buildTube(THREE, points, elevationAt, radius, color, opacity) {
+  const vectors = points.map(([x, z]) => new THREE.Vector3(x, elevationAt(x, z) + 0.55, z));
+  const curve = new THREE.CatmullRomCurve3(vectors);
+  const geometry = new THREE.TubeGeometry(curve, 48, radius, 8, false);
+  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, transparent: true, opacity, emissive: color, emissiveIntensity: 0.18, roughness: 0.35 }));
+}
+
+function buildMovingDot(THREE, points, elevationAt, risky) {
+  const path = points.map(([x, z]) => new THREE.Vector3(x, elevationAt(x, z) + 1.15, z));
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(risky ? 0.38 : 0.32, 16, 12), new THREE.MeshStandardMaterial({ color: risky ? 0xffcc5b : 0x6fffe9, emissive: risky ? 0xff8b2b : 0x2df6e7, emissiveIntensity: 0.8 }));
+  dot.userData.movePath = path;
+  dot.userData.phase = Math.random() * 2;
+  return dot;
+}
+
+function buildPlaceMarker(THREE, place, x, y, z, mode) {
+  const group = new THREE.Group();
+  const isCare = place.id.includes("nursing");
+  const isTown = place.id.includes("town");
+  const color = isCare ? 0xc779a5 : isTown ? 0x33d8e7 : 0xffc247;
+  const height = mode === "plan" && isCare ? 3.9 : isTown ? 3.4 : 2.8;
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, height, 20), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.22, roughness: 0.38 }));
+  mesh.position.set(x, y + height / 2 + 0.25, z);
+  group.add(mesh);
+  group.add(makeLabelSprite(THREE, place.name, x + 1.1, y + height + 1.1, z));
+  return group;
+}
+
+function buildShelterMarker(THREE, shelter, x, y, z) {
+  const group = new THREE.Group();
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.45, 1.45), new THREE.MeshStandardMaterial({ color: 0x37d58c, emissive: 0x1ccf88, emissiveIntensity: 0.32 }));
+  mesh.position.set(x, y + 1.15, z);
+  group.add(mesh);
+  group.add(makeLabelSprite(THREE, shelter.name, x + 1.3, y + 2.5, z));
+  return group;
+}
+
+function buildBridgeMarker(THREE, bridge, x, y, z, closed) {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({ color: closed ? 0xff5b45 : 0xc8d3dc, emissive: closed ? 0xff2f1f : 0x4da2bf, emissiveIntensity: 0.28 });
+  for (let i = -1; i <= 1; i += 1) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 2.4), material);
+    beam.position.set(x + i * 0.48, y + 0.88, z);
+    group.add(beam);
+  }
+  group.add(makeLabelSprite(THREE, bridge.name, x + 1.1, y + 2.0, z));
+  return group;
+}
+
+function buildCompass(THREE) {
+  const group = new THREE.Group();
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.6, 2.4, 4), new THREE.MeshStandardMaterial({ color: 0xeaf6ff, emissive: 0x4dbdff, emissiveIntensity: 0.35 }));
+  cone.rotation.z = Math.PI;
+  cone.position.set(36, 8, -21);
+  group.add(cone);
+  group.add(makeLabelSprite(THREE, "N", 36, 10.2, -21));
+  return group;
+}
+
+function makeLabelSprite(THREE, text, x, y, z) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 320;
+  canvas.height = 80;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "rgba(5, 20, 38, 0.78)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "rgba(91, 210, 255, 0.78)";
+  ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+  ctx.fillStyle = "#effbff";
+  ctx.font = "700 30px PingFang SC, Microsoft YaHei, sans-serif";
+  ctx.fillText(text, 18, 50);
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.position.set(x, y, z);
+  sprite.scale.set(7.2, 1.8, 1);
+  sprite.userData.float = true;
+  sprite.userData.baseY = y;
+  sprite.userData.phase = text.length;
+  return sprite;
 }
 
 function commandHud(live, metrics = {}, spatial = {}) {

@@ -487,6 +487,29 @@ section {
   background: #cbd8c0;
 }
 
+.scenario-3d-map {
+  display: none;
+  width: 100%;
+  height: min(70vh, 720px);
+  min-height: 590px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(41, 136, 194, 0.2), transparent 44%),
+    linear-gradient(145deg, #061321, #0b2946);
+  border-bottom: 1px solid rgba(82, 166, 255, 0.22);
+  cursor: grab;
+  touch-action: none;
+}
+
+.scenario-3d-map:active {
+  cursor: grabbing;
+}
+
+.scenario-3d-map canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .standard-geo-map {
   display: none;
   width: 100%;
@@ -501,7 +524,20 @@ section {
   display: block;
 }
 
+.terrain-panel.three-ready .scenario-3d-map {
+  display: block;
+}
+
+.terrain-panel.three-ready .standard-geo-map,
+.terrain-panel.three-ready.leaflet-ready .standard-geo-map {
+  display: none;
+}
+
 .terrain-panel.leaflet-ready .terrain-fallback {
+  display: none;
+}
+
+.terrain-panel.three-ready .terrain-fallback {
   display: none;
 }
 
@@ -1527,6 +1563,10 @@ th {
     height: 760px;
   }
 
+  .scenario-3d-map {
+    height: 760px;
+  }
+
   .forecast-tabs {
     left: 12px;
     right: 12px;
@@ -1589,11 +1629,15 @@ th {
   }
 
   .command-map-frame {
-    min-height: 920px;
+    min-height: 700px;
   }
 
   .standard-geo-map {
-    height: 920px;
+    height: 700px;
+  }
+
+  .scenario-3d-map {
+    height: 700px;
   }
 
   .forecast-tabs,
