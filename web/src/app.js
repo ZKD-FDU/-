@@ -331,6 +331,7 @@ function render() {
     "复盘与建议": review
   };
   content.innerHTML = route[state.active]();
+  hydrateStandardMap();
   const experimentButton = $("#run-experiment");
   if (experimentButton) experimentButton.addEventListener("click", runExperiment);
   const mdpButton = $("#load-mdp");
@@ -658,11 +659,13 @@ function terrainMap(metrics = {}) {
   const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
   const source = state.spatialContext?.package_id || spatial.package_id || "fallback";
   const method = spatial.method?.route_engine || "unknown";
-  return `<div class="terrain-panel">
+  return `<div class="terrain-panel" id="terrain-panel">
     <div class="terrain-toolbar">
       <div><strong>QGIS 实时空间态势图</strong><span>空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
       <div class="map-badges"><span>t=${live.minute}′</span><span class="${live.commsDegraded ? "bad" : "good"}">通信${live.commsDegraded ? "受损" : "正常"}</span><span class="${live.bridgeClosed ? "bad" : "good"}">桥涵${live.bridgeClosed ? "封闭" : "可通行"}</span><span>安全转移 ${safeRate}%</span></div>
     </div>
+    <div id="standard-geo-map" class="standard-geo-map" aria-label="标准地理底图叠加 QGIS 实时空间态势"></div>
+    <div class="terrain-fallback" aria-label="离线示意地形图">
     <svg class="terrain-map" viewBox="0 0 1000 620" role="img" aria-label="洪策 QGIS 地形态势图">
       <defs>
         <linearGradient id="terrainBase" x1="0" y1="0" x2="1" y2="1">
@@ -698,6 +701,7 @@ function terrainMap(metrics = {}) {
         <text y="42">N</text>
       </g>
     </svg>
+    </div>
     <div class="live-strip">
       <div><strong>${live.shelteredTotal}</strong><span>已安置对象</span></div>
       <div><strong>${live.blockedTotal}</strong><span>受阻/资源不足</span></div>
@@ -713,6 +717,127 @@ function terrainMap(metrics = {}) {
       <span>资源排队 ${queue} 分钟</span>
     </div>
   </div>`;
+}
+
+function hydrateStandardMap() {
+  const panel = $("#terrain-panel");
+  const container = $("#standard-geo-map");
+  if (!panel || !container || !window.L) return;
+  const L = window.L;
+  const spatial = normalizedSpatialMap();
+  const live = liveSpatialState(spatial);
+  panel.classList.add("leaflet-ready");
+
+  const map = L.map(container, {
+    zoomControl: true,
+    attributionControl: true,
+    scrollWheelZoom: false
+  });
+  const topo = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 18,
+    attribution: "Tiles &copy; Esri"
+  });
+  const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors"
+  });
+  const imagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 18,
+    attribution: "Imagery &copy; Esri"
+  });
+  topo.addTo(map);
+  L.control.layers({ "地形底图": topo, "街道底图": street, "卫星影像": imagery }, {}, { position: "topleft" }).addTo(map);
+
+  const featureBounds = [];
+  const toLatLng = ([lon, lat]) => [lat, lon];
+  const addBounds = (coords) => coords.forEach((coord) => featureBounds.push(toLatLng(coord)));
+
+  for (const zone of spatial.risk_zones) {
+    const latLngs = zone.polygon.map(toLatLng);
+    addBounds(zone.polygon);
+    L.polygon(latLngs, {
+      color: Number(zone.risk_score || 0) >= 0.75 ? "#8f3f2f" : "#b3792e",
+      weight: 2,
+      fillColor: Number(zone.risk_score || 0) >= 0.75 ? "#b76646" : "#d6a044",
+      fillOpacity: 0.34
+    }).bindPopup(`<strong>${escapeHtml(zone.name || zone.id)}</strong><br>风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%`).addTo(map);
+  }
+
+  for (const river of spatial.rivers) {
+    const latLngs = river.coordinates.map(toLatLng);
+    addBounds(river.coordinates);
+    L.polyline(latLngs, {
+      color: river.kind === "tributary_culvert" ? "#2b8aa6" : "#1f7195",
+      weight: river.kind === "tributary_culvert" ? 4 : 7,
+      opacity: 0.78
+    }).bindPopup(`<strong>${escapeHtml(river.name || river.id)}</strong><br>流向 ${escapeHtml(river.flow_direction || "上游至下游")}`).addTo(map);
+    const end = latLngs[latLngs.length - 1];
+    L.marker(end, {
+      icon: L.divIcon({ className: "flow-arrow-marker", html: "→", iconSize: [22, 22], iconAnchor: [11, 11] })
+    }).addTo(map);
+  }
+
+  for (const route of spatial.routes) {
+    const routeLive = live.routes[route.id] || {};
+    const risky = route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65;
+    const closed = routeLive.status === "closed";
+    addBounds(route.coordinates);
+    L.polyline(route.coordinates.map(toLatLng), {
+      color: closed ? "#9a4129" : risky ? "#e09345" : "#e7c95f",
+      weight: risky ? 5 : 4,
+      opacity: 0.9,
+      dashArray: closed ? "3 8" : risky ? "10 8" : ""
+    }).bindPopup(`<strong>${escapeHtml(route.name || route.id)}</strong><br>${escapeHtml(routeLive.label || "待命")} · ${route.travel_minutes || 0} 分钟`).addTo(map);
+  }
+
+  for (const bridge of spatial.bridges) {
+    const closed = live.bridgeClosed && Number(bridge.risk_score || 0) >= 0.65;
+    const latLng = [bridge.y, bridge.x];
+    featureBounds.push(latLng);
+    L.marker(latLng, {
+      icon: L.divIcon({
+        className: `bridge-marker ${closed ? "closed" : ""}`,
+        html: `<span></span><b>${escapeHtml(bridge.name || bridge.id)}${closed ? " 封闭" : ""}</b>`,
+        iconSize: [86, 24],
+        iconAnchor: [12, 12]
+      })
+    }).bindPopup(`<strong>${escapeHtml(bridge.name || bridge.id)}</strong><br>风险 ${Math.round(Number(bridge.risk_score || 0) * 100)}%`).addTo(map);
+  }
+
+  for (const place of spatial.places) {
+    const placeLive = live.places[place.id] || { sheltered: 0, total: Number(place.population || 0), blocked: 0, progress: 0 };
+    const markerType = place.type || (place.id.includes("town") ? "town" : place.id.includes("nursing") ? "care" : "village");
+    const latLng = [place.y, place.x];
+    featureBounds.push(latLng);
+    L.circleMarker(latLng, {
+      radius: markerType === "town" ? 9 : 8,
+      color: "#ffffff",
+      weight: 2,
+      fillColor: markerType === "care" ? "#9f5f80" : markerType === "town" ? "#1b6b6f" : "#f0b429",
+      fillOpacity: 0.96
+    }).bindTooltip(`${place.name}`, { permanent: true, direction: "right", className: "geo-label" })
+      .bindPopup(`<strong>${escapeHtml(place.name)}</strong><br>定位：${escapeHtml(place.evacuation_role || "标准转移")}<br>风险 ${Math.round(Number(place.risk_score || 0) * 100)}% · 高程 ${place.elevation_m || "-"}m<br>已转 ${placeLive.sheltered}/${placeLive.total || place.population}`)
+      .addTo(map);
+  }
+
+  for (const shelter of spatial.shelters) {
+    const latLng = [shelter.y, shelter.x];
+    featureBounds.push(latLng);
+    L.marker(latLng, {
+      icon: L.divIcon({
+        className: "shelter-marker",
+        html: `<span></span><b>${escapeHtml(shelter.name)}</b>`,
+        iconSize: [170, 28],
+        iconAnchor: [12, 14]
+      })
+    }).bindPopup(`<strong>${escapeHtml(shelter.name)}</strong><br>容量 ${shelter.capacity} · 照护容量 ${shelter.care_capacity || 0}`).addTo(map);
+  }
+
+  if (featureBounds.length) {
+    map.fitBounds(featureBounds, { padding: [32, 32], maxZoom: 14 });
+  } else {
+    map.setView([31.25, 121.39], 12);
+  }
 }
 
 function normalizedSpatialMap() {

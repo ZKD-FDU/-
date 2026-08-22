@@ -450,6 +450,124 @@ section {
   background: #cbd8c0;
 }
 
+.standard-geo-map {
+  display: none;
+  width: 100%;
+  height: min(64vh, 620px);
+  min-height: 500px;
+  background: #d8e1dc;
+  border-bottom: 1px solid #d9e0e3;
+}
+
+.terrain-panel.leaflet-ready .standard-geo-map {
+  display: block;
+}
+
+.terrain-panel.leaflet-ready .terrain-fallback {
+  display: none;
+}
+
+.standard-geo-map .leaflet-control-layers,
+.standard-geo-map .leaflet-control-zoom {
+  border: 1px solid rgba(31, 47, 54, 0.18);
+  box-shadow: 0 5px 16px rgba(20, 31, 37, 0.16);
+}
+
+.standard-geo-map .leaflet-popup-content {
+  min-width: 190px;
+  line-height: 1.55;
+  color: #233036;
+}
+
+.standard-geo-map .leaflet-popup-content strong {
+  color: #15242a;
+}
+
+.geo-label {
+  border: 0;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 2px 8px rgba(25, 38, 42, 0.18);
+  color: #17242b;
+  font-weight: 800;
+  padding: 2px 6px;
+}
+
+.geo-label::before {
+  display: none;
+}
+
+.bridge-marker,
+.shelter-marker,
+.flow-arrow-marker {
+  background: transparent;
+  border: 0;
+}
+
+.bridge-marker span {
+  display: inline-block;
+  width: 26px;
+  height: 12px;
+  border-top: 5px solid #374348;
+  border-bottom: 3px solid #374348;
+  position: relative;
+  top: 4px;
+}
+
+.bridge-marker span::before,
+.bridge-marker span::after {
+  content: "";
+  position: absolute;
+  top: -7px;
+  bottom: -5px;
+  width: 3px;
+  background: #374348;
+}
+
+.bridge-marker span::before {
+  left: 6px;
+}
+
+.bridge-marker span::after {
+  right: 6px;
+}
+
+.bridge-marker.closed span,
+.bridge-marker.closed span::before,
+.bridge-marker.closed span::after {
+  border-color: #9a4129;
+  background: #9a4129;
+}
+
+.bridge-marker b,
+.shelter-marker b {
+  margin-left: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #17242b;
+  font-size: 13px;
+  box-shadow: 0 2px 8px rgba(25, 38, 42, 0.16);
+  white-space: nowrap;
+}
+
+.shelter-marker span {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid #fff;
+  background: #2c9b64;
+  box-shadow: 0 2px 8px rgba(25, 38, 42, 0.28);
+  vertical-align: middle;
+}
+
+.flow-arrow-marker {
+  color: #1f7195;
+  font-size: 24px;
+  font-weight: 900;
+  text-shadow: 0 1px 3px #fff;
+}
+
 .terrain-bg {
   fill: url("#terrainBase");
 }
