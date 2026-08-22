@@ -648,21 +648,31 @@ section {
   box-shadow: 0 0 24px rgba(39, 148, 255, 0.28);
 }
 
-.forecast-tabs span {
+.forecast-tabs button {
+  appearance: none;
+  border: 0;
   text-align: center;
   color: #b9d8ed;
   padding: 8px 12px;
   font-weight: 800;
   border-right: 1px solid rgba(91, 174, 255, 0.25);
+  background: transparent;
+  cursor: pointer;
 }
 
-.forecast-tabs span:last-child {
+.forecast-tabs button:last-child {
   border-right: 0;
 }
 
 .forecast-tabs .active {
   color: white;
   background: linear-gradient(180deg, #2e65be, #173e81);
+  box-shadow: inset 0 -2px 0 #66e6ff;
+}
+
+.forecast-tabs button:hover {
+  color: #ffffff;
+  background: rgba(42, 107, 181, 0.42);
 }
 
 .hud-panel {
@@ -767,6 +777,40 @@ section {
 
 .plan-steps .warn {
   border-left-color: #ff9e55;
+}
+
+.threshold-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.threshold-list span {
+  display: grid;
+  grid-template-columns: 76px 1fr 42px;
+  gap: 8px;
+  align-items: center;
+  color: #b9d8ed;
+  font-size: 12px;
+}
+
+.threshold-list i {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(91, 174, 255, 0.16);
+  overflow: hidden;
+}
+
+.threshold-list em {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #35d9ff, #ffe266, #ff8b3d);
+}
+
+.threshold-list strong {
+  color: #ffffff;
+  text-align: right;
 }
 
 .mini-readout {

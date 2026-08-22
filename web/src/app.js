@@ -12,6 +12,12 @@ const policies = [
 ];
 
 const tabs = ["县域态势总览", "情景编辑器", "参数校准", "实时推演", "叫应确认台", "政策对比", "策略优化与RL", "个体与事件解释", "复盘与建议"];
+const mapModes = [
+  ["hydrology", "水文预报"],
+  ["warning", "预警设置"],
+  ["simulation", "模拟预演"],
+  ["plan", "预案生成"]
+];
 
 const fallbackSpatialMap = {
   package_id: "frontend-fallback-qingyuan",
@@ -85,6 +91,7 @@ const state = {
     metric_candidates: ""
   },
   editorSub: "params",
+  mapMode: "hydrology",
   busy: false
 };
 
@@ -417,6 +424,12 @@ function render() {
   document.querySelectorAll("[data-run-policy]").forEach((button) => {
     button.addEventListener("click", () => runSimulation(button.dataset.runPolicy));
   });
+  document.querySelectorAll("[data-map-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.mapMode = button.dataset.mapMode;
+      render();
+    });
+  });
 }
 
 function calibrationWorkbench() {
@@ -724,6 +737,7 @@ function terrainMap(metrics = {}) {
 }
 
 function commandHud(live, metrics = {}, spatial = {}) {
+  const mode = state.mapMode || "hydrology";
   const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
   const harmRisk = Math.round(Number(metrics.vulnerable_harm_risk || 0) * 1000) / 10;
   const closureRate = Math.round(Number(metrics.response_closure_rate || 0) * 1000) / 10;
@@ -737,37 +751,94 @@ function commandHud(live, metrics = {}, spatial = {}) {
     ["支沟倒灌", live.bridgeClosed ? 78 : 52, "%"],
     ["床位占用", shelterBeds ? Math.min(100, Math.round((live.shelteredTotal / shelterBeds) * 100)) : 0, "%"]
   ];
+  const panel = commandModePanel(mode, { live, safeRate, harmRisk, closureRate, queue, routeCount, highRiskRoutes, shelterBeds, gauges });
   return `<div class="forecast-tabs">
-    ${["水文预报", "预警设置", "模拟预演", "预案生成"].map((item, index) => `<span class="${index === 0 ? "active" : ""}">${item}</span>`).join("")}
+    ${mapModes.map(([id, label]) => `<button data-map-mode="${id}" class="${mode === id ? "active" : ""}" type="button">${label}</button>`).join("")}
   </div>
   <aside class="hud-panel hud-left">
-    <h3>水文预报</h3>
+    <h3>${panel.leftTitle}</h3>
     <div class="hud-kpis">
-      <span><b>${live.dangerEta}′</b><small>危险提前量</small></span>
-      <span><b>${safeRate}%</b><small>安全转移</small></span>
-      <span><b>${harmRisk}%</b><small>脆弱风险</small></span>
+      ${panel.kpis.map(([value, label]) => `<span><b>${value}</b><small>${label}</small></span>`).join("")}
     </div>
-    <div class="hydro-bars">
-      ${gauges.map(([label, value, unit]) => `<label><span>${label}</span><i><em style="height:${value}%"></em></i><b>${value}${unit}</b></label>`).join("")}
-    </div>
+    ${panel.leftBody}
   </aside>
   <aside class="hud-panel hud-right">
-    <h3>预案生成</h3>
+    <h3>${panel.rightTitle}</h3>
     <div class="plan-steps">
-      <span class="done">蓝黄橙红响应阈值</span>
-      <span class="${live.commsDegraded ? "warn" : "done"}">叫应链路 ${live.commsDegraded ? "备用" : "正常"}</span>
-      <span class="${live.bridgeClosed ? "warn" : "done"}">桥涵状态 ${live.bridgeClosed ? "封控" : "可通行"}</span>
-      <span>高风险路线 ${highRiskRoutes}/${routeCount}</span>
+      ${panel.steps.map(([text, tone = "done"]) => `<span class="${tone}">${text}</span>`).join("")}
     </div>
     <div class="mini-readout">
-      <span><b>${closureRate}%</b>闭环响应</span>
-      <span><b>${queue}</b>排队分钟</span>
-      <span><b>${live.blockedTotal}</b>受阻对象</span>
+      ${panel.readout.map(([value, label]) => `<span><b>${value}</b>${label}</span>`).join("")}
     </div>
   </aside>
   <div class="hydro-bottom">
-    ${gauges.map(([label, value]) => `<span><i style="width:${value}%"></i><b>${label}</b></span>`).join("")}
+    ${panel.bottom.map(([label, value]) => `<span><i style="width:${value}%"></i><b>${label}</b></span>`).join("")}
   </div>`;
+}
+
+function commandModePanel(mode, context) {
+  const { live, safeRate, harmRisk, closureRate, queue, routeCount, highRiskRoutes, shelterBeds, gauges } = context;
+  const bars = `<div class="hydro-bars">${gauges.map(([label, value, unit]) => `<label><span>${label}</span><i><em style="height:${value}%"></em></i><b>${value}${unit}</b></label>`).join("")}</div>`;
+  const warningBars = [
+    ["蓝色阈值", 42],
+    ["黄色阈值", 58],
+    ["橙色阈值", 76],
+    ["红色阈值", 91]
+  ];
+  const simulationBars = [
+    ["北谷预转移", 38],
+    ["南谷转移", 72],
+    ["养老中心", 84],
+    ["镇区低洼", 46]
+  ];
+  const planBars = [
+    ["车辆调拨", 76],
+    ["照护人员", 68],
+    ["床位储备", shelterBeds ? Math.min(100, Math.round((800 / Math.max(1, shelterBeds)) * 100)) : 80],
+    ["备用通信", 64]
+  ];
+  if (mode === "warning") {
+    return {
+      leftTitle: "预警设置",
+      kpis: [[`${state.scenarioConfig.warning_minute}′`, "预警发布"], [`${state.scenarioConfig.evacuation_order_minute}′`, "转移命令"], [`${Math.round(Number(state.scenarioConfig.communication_failure_rate || 0) * 100)}%`, "通信失败率"]],
+      leftBody: `<div class="threshold-list">${warningBars.map(([label, value]) => `<span><b>${label}</b><i><em style="width:${value}%"></em></i><strong>${value}%</strong></span>`).join("")}</div>`,
+      rightTitle: "叫应与阈值",
+      steps: [["气象预警触发县级会商"], ["橙色阈值触发养老机构预转移"], ["红色阈值触发南谷强制转移", "warn"], ["通信受损时启用网格员上门"]],
+      readout: [[`${live.commsDegraded ? "备用" : "正常"}`, "通信链路"], [`${state.scenarioConfig.bridge_closure_minute}′`, "桥涵封控"], [`${closureRate}%`, "闭环率"]],
+      bottom: warningBars
+    };
+  }
+  if (mode === "simulation") {
+    return {
+      leftTitle: "模拟预演",
+      kpis: [[`${live.shelteredTotal}`, "已安置"], [`${live.movingTotal}`, "转移中"], [`${live.blockedTotal}`, "受阻对象"]],
+      leftBody: `<div class="threshold-list">${simulationBars.map(([label, value]) => `<span><b>${label}</b><i><em style="width:${value}%"></em></i><strong>${value}%</strong></span>`).join("")}</div>`,
+      rightTitle: "路线推演",
+      steps: [["北谷沿北岸高地路线预转移"], ["南谷经南涵洞至体育馆"], [`养老中心经东桥至学校${live.bridgeClosed ? "，需绕行" : ""}`, live.bridgeClosed ? "warn" : "done"], [`高风险路线 ${highRiskRoutes}/${routeCount}`]],
+      readout: [[`${safeRate}%`, "安全转移"], [`${queue}`, "排队分钟"], [`${live.dangerEta}′`, "危险到达"]],
+      bottom: simulationBars
+    };
+  }
+  if (mode === "plan") {
+    return {
+      leftTitle: "资源编组",
+      kpis: [[`${state.scenarioConfig.vehicles}`, "转运车辆"], [`${state.scenarioConfig.care_workers}`, "照护人员"], [`${shelterBeds}`, "避难床位"]],
+      leftBody: `<div class="threshold-list">${planBars.map(([label, value]) => `<span><b>${label}</b><i><em style="width:${value}%"></em></i><strong>${value}%</strong></span>`).join("")}</div>`,
+      rightTitle: "预案生成",
+      steps: [["养老中心优先转移"], ["南谷涵洞设观察哨", "warn"], ["北谷脆弱人群预转移"], ["学校与体育馆分区接收"]],
+      readout: [[`${highRiskRoutes}/${routeCount}`, "高风险路线"], [`${live.blockedTotal}`, "受阻对象"], [`${queue}`, "排队分钟"]],
+      bottom: planBars
+    };
+  }
+  return {
+    leftTitle: "水文预报",
+    kpis: [[`${live.dangerEta}′`, "危险提前量"], [`${safeRate}%`, "安全转移"], [`${harmRisk}%`, "脆弱风险"]],
+    leftBody: bars,
+    rightTitle: "预案生成",
+    steps: [["蓝黄橙红响应阈值"], [`叫应链路 ${live.commsDegraded ? "备用" : "正常"}`, live.commsDegraded ? "warn" : "done"], [`桥涵状态 ${live.bridgeClosed ? "封控" : "可通行"}`, live.bridgeClosed ? "warn" : "done"], [`高风险路线 ${highRiskRoutes}/${routeCount}`]],
+    readout: [[`${closureRate}%`, "闭环响应"], [`${queue}`, "排队分钟"], [`${live.blockedTotal}`, "受阻对象"]],
+    bottom: gauges
+  };
 }
 
 function hydrateStandardMap() {
@@ -777,6 +848,7 @@ function hydrateStandardMap() {
   const L = window.L;
   const spatial = normalizedSpatialMap();
   const live = liveSpatialState(spatial);
+  const mode = state.mapMode || "hydrology";
   panel.classList.add("leaflet-ready");
 
   const map = L.map(container, {
@@ -814,9 +886,9 @@ function hydrateStandardMap() {
     addBounds(zone.polygon);
     L.polygon(latLngs, {
       color: Number(zone.risk_score || 0) >= 0.75 ? "#8f3f2f" : "#b3792e",
-      weight: 2,
+      weight: mode === "warning" || mode === "hydrology" ? 3 : 2,
       fillColor: Number(zone.risk_score || 0) >= 0.75 ? "#ff7b3d" : "#ffd34f",
-      fillOpacity: Number(zone.risk_score || 0) >= 0.75 ? 0.46 : 0.34
+      fillOpacity: mode === "simulation" ? 0.26 : Number(zone.risk_score || 0) >= 0.75 ? 0.5 : 0.36
     }).bindPopup(`<strong>${escapeHtml(zone.name || zone.id)}</strong><br>风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%`).addTo(map);
   }
 
@@ -825,7 +897,7 @@ function hydrateStandardMap() {
     addBounds(river.coordinates);
     L.polyline(latLngs, {
       color: river.kind === "tributary_culvert" ? "#28d7ff" : "#17a9ff",
-      weight: river.kind === "tributary_culvert" ? 5 : 9,
+      weight: mode === "hydrology" ? (river.kind === "tributary_culvert" ? 6 : 11) : (river.kind === "tributary_culvert" ? 5 : 8),
       opacity: 0.86
     }).bindPopup(`<strong>${escapeHtml(river.name || river.id)}</strong><br>流向 ${escapeHtml(river.flow_direction || "上游至下游")}`).addTo(map);
     const end = latLngs[latLngs.length - 1];
@@ -841,8 +913,8 @@ function hydrateStandardMap() {
     addBounds(route.coordinates);
     L.polyline(route.coordinates.map(toLatLng), {
       color: closed ? "#9a4129" : risky ? "#e09345" : "#e7c95f",
-      weight: risky ? 5 : 4,
-      opacity: 0.9,
+      weight: mode === "simulation" || mode === "plan" ? (risky ? 7 : 6) : (risky ? 5 : 4),
+      opacity: mode === "hydrology" ? 0.7 : 0.95,
       dashArray: closed ? "3 8" : risky ? "10 8" : ""
     }).bindPopup(`<strong>${escapeHtml(route.name || route.id)}</strong><br>${escapeHtml(routeLive.label || "待命")} · ${route.travel_minutes || 0} 分钟`).addTo(map);
   }
@@ -867,7 +939,7 @@ function hydrateStandardMap() {
     const latLng = [place.y, place.x];
     featureBounds.push(latLng);
     L.circleMarker(latLng, {
-      radius: markerType === "town" ? 9 : 8,
+      radius: mode === "plan" ? (markerType === "care" ? 11 : 9) : markerType === "town" ? 9 : 8,
       color: "#ffffff",
       weight: 2,
       fillColor: markerType === "care" ? "#9f5f80" : markerType === "town" ? "#1b6b6f" : "#f0b429",
