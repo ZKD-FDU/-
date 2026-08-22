@@ -17,7 +17,7 @@
         "closure_threshold": 0.62,
         "bridge_type": "main_river_bridge"
       },
-      "geometry": { "type": "Point", "coordinates": [121.382, 31.269] }
+      "geometry": { "type": "Point", "coordinates": [121.382, 31.255] }
     },
     {
       "type": "Feature",

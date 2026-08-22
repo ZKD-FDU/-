@@ -22,32 +22,32 @@ const fallbackSpatialMap = {
     hydrology: "main river and tributary exported as upstream-to-downstream polylines"
   },
   places: [
-    { id: "north_valley", name: "北谷村", type: "village", population: 220, vulnerable_population: 90, risk_score: 0.32, elevation_m: 48, river_distance_m: 920, x: 121.316, y: 31.318 },
-    { id: "qingyuan_town", name: "清源镇", type: "town", population: 530, vulnerable_population: 110, risk_score: 0.46, elevation_m: 30, river_distance_m: 620, x: 121.388, y: 31.276 },
-    { id: "south_valley", name: "南谷村", type: "village", population: 180, vulnerable_population: 70, risk_score: 0.52, elevation_m: 36, river_distance_m: 520, x: 121.392, y: 31.206 },
-    { id: "nursing_home", name: "青松养老照料中心", type: "care", population: 69, vulnerable_population: 55, risk_score: 0.74, elevation_m: 24, river_distance_m: 280, x: 121.35, y: 31.292 }
+    { id: "north_valley", name: "北谷村", type: "village", population: 220, vulnerable_population: 90, risk_score: 0.18, elevation_m: 52, river_distance_m: 1200, evacuation_role: "watch_pretransfer", x: 121.318, y: 31.318 },
+    { id: "qingyuan_town", name: "清源镇", type: "town", population: 530, vulnerable_population: 110, risk_score: 0.22, elevation_m: 36, river_distance_m: 760, evacuation_role: "command_support_partial", x: 121.388, y: 31.276 },
+    { id: "south_valley", name: "南谷村", type: "village", population: 180, vulnerable_population: 70, risk_score: 0.72, elevation_m: 23, river_distance_m: 180, evacuation_role: "priority_transfer", x: 121.392, y: 31.206 },
+    { id: "nursing_home", name: "青松养老照料中心", type: "care", population: 69, vulnerable_population: 55, risk_score: 0.88, elevation_m: 18, river_distance_m: 90, evacuation_role: "mandatory_priority_transfer", x: 121.352, y: 31.248 }
   ],
   shelters: [
-    { id: "school_shelter", name: "第二中学避难点", capacity: 620, care_capacity: 80, x: 121.456, y: 31.266 },
-    { id: "gym_shelter", name: "县体育馆避难点", capacity: 180, care_capacity: 28, x: 121.432, y: 31.236 }
+    { id: "school_shelter", name: "第二中学避难点（北岸高地）", capacity: 620, care_capacity: 80, x: 121.458, y: 31.284 },
+    { id: "gym_shelter", name: "县体育馆安置点（南部高地）", capacity: 180, care_capacity: 28, x: 121.432, y: 31.226 }
   ],
   rivers: [
-    { id: "main_river", name: "清源河主槽", kind: "main_channel", flow_direction: "NW-SE", risk_score: 0.82, coordinates: [[121.305, 31.318], [121.33, 31.3], [121.356, 31.285], [121.383, 31.268], [121.41, 31.245], [121.438, 31.222], [121.468, 31.205]] },
-    { id: "south_tributary", name: "南支沟", kind: "tributary_culvert", flow_direction: "S-N", risk_score: 0.68, coordinates: [[121.385, 31.201], [121.397, 31.209], [121.409, 31.218], [121.421, 31.229], [121.432, 31.236], [121.41, 31.245]] }
+    { id: "main_river", name: "清源河主槽", kind: "main_channel", flow_direction: "W-E", risk_score: 0.82, coordinates: [[121.3, 31.255], [121.335, 31.256], [121.37, 31.255], [121.405, 31.253], [121.44, 31.251], [121.474, 31.248]] },
+    { id: "south_tributary", name: "南支沟", kind: "tributary_culvert", flow_direction: "S-N", risk_score: 0.68, coordinates: [[121.386, 31.199], [121.397, 31.207], [121.409, 31.218], [121.421, 31.229], [121.432, 31.226], [121.405, 31.253]] }
   ],
   bridges: [
-    { id: "bridge_east", name: "东桥", risk_score: 0.8, bridge_type: "main_river_bridge", x: 121.382, y: 31.269 },
+    { id: "bridge_east", name: "东桥", risk_score: 0.8, bridge_type: "main_river_bridge", x: 121.382, y: 31.255 },
     { id: "bridge_south", name: "南涵洞", risk_score: 0.68, bridge_type: "tributary_culvert", x: 121.409, y: 31.218 }
   ],
   risk_zones: [
-    { id: "floodplain_01", name: "主河道漫溢区", risk_score: 0.82, geometry: { type: "Polygon", coordinates: [[[121.3, 31.326], [121.329, 31.306], [121.358, 31.291], [121.39, 31.274], [121.42, 31.25], [121.472, 31.211], [121.464, 31.199], [121.433, 31.219], [121.402, 31.241], [121.377, 31.26], [121.346, 31.275], [121.318, 31.295], [121.298, 31.313], [121.3, 31.326]]] } },
-    { id: "tributary_ponding_01", name: "南支沟倒灌积水区", risk_score: 0.68, geometry: { type: "Polygon", coordinates: [[[121.384, 31.202], [121.403, 31.213], [121.421, 31.229], [121.433, 31.236], [121.426, 31.244], [121.408, 31.229], [121.393, 31.215], [121.379, 31.207], [121.384, 31.202]]] } }
+    { id: "floodplain_01", name: "主河道漫溢区", risk_score: 0.82, geometry: { type: "Polygon", coordinates: [[[121.3, 31.271], [121.335, 31.269], [121.372, 31.267], [121.409, 31.265], [121.444, 31.263], [121.474, 31.259], [121.474, 31.236], [121.438, 31.238], [121.402, 31.24], [121.366, 31.242], [121.331, 31.244], [121.3, 31.248], [121.3, 31.271]]] } },
+    { id: "tributary_ponding_01", name: "南支沟倒灌积水区", risk_score: 0.68, geometry: { type: "Polygon", coordinates: [[[121.382, 31.199], [121.398, 31.205], [121.414, 31.216], [121.432, 31.226], [121.437, 31.236], [121.421, 31.232], [121.405, 31.22], [121.389, 31.211], [121.382, 31.199]]] } }
   ],
   routes: [
-    { id: "route-north_valley-school_shelter", origin_id: "north_valley", shelter_id: "school_shelter", travel_minutes: 34.2, risk_score: 0.82, bridge_exposure_score: 0.8, bridge_dependency: ["bridge_east"], crosses_high_risk: true, coordinates: [[121.316, 31.318], [121.338, 31.302], [121.348, 31.294], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] },
-    { id: "route-qingyuan_town-school_shelter", origin_id: "qingyuan_town", shelter_id: "school_shelter", travel_minutes: 18.4, risk_score: 0.46, bridge_exposure_score: 0, bridge_dependency: [], crosses_high_risk: false, coordinates: [[121.388, 31.276], [121.421, 31.272], [121.456, 31.266]] },
-    { id: "route-south_valley-gym_shelter", origin_id: "south_valley", shelter_id: "gym_shelter", travel_minutes: 13.1, risk_score: 0.68, bridge_exposure_score: 0.68, bridge_dependency: ["bridge_south"], crosses_high_risk: true, coordinates: [[121.392, 31.206], [121.409, 31.218], [121.421, 31.228], [121.432, 31.236]] },
-    { id: "route-nursing_home-school_shelter", origin_id: "nursing_home", shelter_id: "school_shelter", travel_minutes: 26.2, risk_score: 0.82, bridge_exposure_score: 0.8, bridge_dependency: ["bridge_east"], crosses_high_risk: true, coordinates: [[121.35, 31.292], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] }
+    { id: "route-north_valley-school_shelter", origin_id: "north_valley", shelter_id: "school_shelter", travel_minutes: 33.3, risk_score: 0, bridge_exposure_score: 0, bridge_dependency: [], crosses_high_risk: false, coordinates: [[121.318, 31.318], [121.36, 31.312], [121.406, 31.298], [121.458, 31.284]] },
+    { id: "route-qingyuan_town-school_shelter", origin_id: "qingyuan_town", shelter_id: "school_shelter", travel_minutes: 16.2, risk_score: 0, bridge_exposure_score: 0, bridge_dependency: [], crosses_high_risk: false, coordinates: [[121.388, 31.276], [121.421, 31.282], [121.458, 31.284]] },
+    { id: "route-south_valley-gym_shelter", origin_id: "south_valley", shelter_id: "gym_shelter", travel_minutes: 10.7, risk_score: 0.68, bridge_exposure_score: 0.68, bridge_dependency: ["bridge_south"], crosses_high_risk: true, coordinates: [[121.392, 31.206], [121.409, 31.218], [121.421, 31.223], [121.432, 31.226]] },
+    { id: "route-nursing_home-school_shelter", origin_id: "nursing_home", shelter_id: "school_shelter", travel_minutes: 26.2, risk_score: 0.82, bridge_exposure_score: 0.8, bridge_dependency: ["bridge_east"], crosses_high_risk: true, coordinates: [[121.352, 31.248], [121.382, 31.255], [121.421, 31.274], [121.458, 31.284]] }
   ],
   coverage: { coverage_minutes: 60, covered_place_count: 4, uncovered_place_count: 0, coverage_rate: 1, total_shelter_capacity: 800 }
 };

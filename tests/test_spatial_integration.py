@@ -13,8 +13,8 @@ SPATIAL_PACKAGE = {
     "label": "SYNTHETIC_SPATIAL",
     "package_id": "test-qgis-package",
     "places": [
-        {"id": "north_valley", "population": 220, "vulnerable_population": 90, "risk_score": 0.82},
-        {"id": "qingyuan_town", "population": 530, "vulnerable_population": 110, "risk_score": 0.34},
+        {"id": "north_valley", "population": 220, "vulnerable_population": 90, "risk_score": 0.18},
+        {"id": "qingyuan_town", "population": 530, "vulnerable_population": 110, "risk_score": 0.22},
         {"id": "south_valley", "population": 180, "vulnerable_population": 70, "risk_score": 0.68},
     ],
     "shelters": [
@@ -23,7 +23,7 @@ SPATIAL_PACKAGE = {
     ],
     "coverage": {"coverage_rate": 0.667, "uncovered_place_count": 1},
     "routes": [
-        {"origin_id": "north_valley", "shelter_id": "school", "travel_minutes": 72, "crosses_high_risk": True, "bridge_exposure_score": 0.8},
+        {"origin_id": "north_valley", "shelter_id": "school", "travel_minutes": 31, "crosses_high_risk": False, "bridge_exposure_score": 0.0},
         {
             "origin_id": "qingyuan_town",
             "shelter_id": "school",
@@ -75,8 +75,9 @@ class SpatialIntegrationTest(unittest.TestCase):
         rivers = {river["id"]: river for river in package.get("rivers", [])}
         self.assertIn("main_river", rivers)
         self.assertIn("south_tributary", rivers)
-        self.assertEqual(rivers["main_river"]["coordinates"][0], [121.305, 31.318])
-        self.assertEqual(rivers["main_river"]["coordinates"][-1], [121.468, 31.205])
+        self.assertEqual(rivers["main_river"]["flow_direction"], "W-E")
+        self.assertEqual(rivers["main_river"]["coordinates"][0], [121.3, 31.255])
+        self.assertEqual(rivers["main_river"]["coordinates"][-1], [121.474, 31.248])
 
         bridges = {bridge["id"]: bridge for bridge in package["bridges"]}
         south_culvert = bridges["bridge_south"]
@@ -85,11 +86,19 @@ class SpatialIntegrationTest(unittest.TestCase):
 
         risks = {place["id"]: place["risk_score"] for place in package["places"]}
         self.assertGreater(risks["nursing_home"], risks["qingyuan_town"])
+        self.assertGreater(risks["south_valley"], risks["north_valley"])
         self.assertGreaterEqual(len(set(risks.values())), 2)
+
+        places = {place["id"]: place for place in package["places"]}
+        self.assertEqual(places["north_valley"]["evacuation_role"], "watch_pretransfer")
+        self.assertEqual(places["south_valley"]["evacuation_role"], "priority_transfer")
+        self.assertEqual(places["nursing_home"]["evacuation_role"], "mandatory_priority_transfer")
 
         routes = {route["origin_id"]: route for route in package["routes"]}
         self.assertIn("bridge_south", routes["south_valley"]["bridge_dependency"])
-        self.assertIn("bridge_east", routes["north_valley"]["bridge_dependency"])
+        self.assertIn("bridge_east", routes["nursing_home"]["bridge_dependency"])
+        self.assertEqual(routes["north_valley"]["bridge_dependency"], [])
+        self.assertFalse(routes["north_valley"]["crosses_high_risk"])
 
 
 if __name__ == "__main__":

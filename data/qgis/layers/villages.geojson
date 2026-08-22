@@ -15,12 +15,14 @@
         "name": "北谷村",
         "population": 220,
         "vulnerable_population": 90,
-        "elevation_m": 48,
-        "river_distance_m": 920,
-        "hazard_exposure": 0.32,
-        "administrative_level": "village"
+        "elevation_m": 52,
+        "river_distance_m": 1200,
+        "hazard_exposure": 0.18,
+        "administrative_level": "village",
+        "evacuation_role": "watch_pretransfer",
+        "transfer_trigger": "vulnerable_pretransfer_or_isolation_risk"
       },
-      "geometry": { "type": "Point", "coordinates": [121.316, 31.318] }
+      "geometry": { "type": "Point", "coordinates": [121.318, 31.318] }
     },
     {
       "type": "Feature",
@@ -29,10 +31,12 @@
         "name": "清源镇",
         "population": 530,
         "vulnerable_population": 110,
-        "elevation_m": 30,
-        "river_distance_m": 620,
-        "hazard_exposure": 0.46,
-        "administrative_level": "town"
+        "elevation_m": 36,
+        "river_distance_m": 760,
+        "hazard_exposure": 0.22,
+        "administrative_level": "town",
+        "evacuation_role": "command_support_partial",
+        "transfer_trigger": "low_lying_blocks_only"
       },
       "geometry": { "type": "Point", "coordinates": [121.388, 31.276] }
     },
@@ -43,10 +47,12 @@
         "name": "南谷村",
         "population": 180,
         "vulnerable_population": 70,
-        "elevation_m": 36,
-        "river_distance_m": 520,
-        "hazard_exposure": 0.52,
-        "administrative_level": "village"
+        "elevation_m": 23,
+        "river_distance_m": 180,
+        "hazard_exposure": 0.72,
+        "administrative_level": "village",
+        "evacuation_role": "priority_transfer",
+        "transfer_trigger": "tributary_backwater_or_culvert_overtopping"
       },
       "geometry": { "type": "Point", "coordinates": [121.392, 31.206] }
     },
@@ -57,12 +63,14 @@
         "name": "青松养老照料中心",
         "population": 69,
         "vulnerable_population": 55,
-        "elevation_m": 24,
-        "river_distance_m": 280,
-        "hazard_exposure": 0.74,
-        "administrative_level": "institution"
+        "elevation_m": 18,
+        "river_distance_m": 90,
+        "hazard_exposure": 0.88,
+        "administrative_level": "institution",
+        "evacuation_role": "mandatory_priority_transfer",
+        "transfer_trigger": "orange_response_or_water_level_warning"
       },
-      "geometry": { "type": "Point", "coordinates": [121.35, 31.292] }
+      "geometry": { "type": "Point", "coordinates": [121.352, 31.248] }
     }
   ]
 }

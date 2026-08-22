@@ -92,8 +92,13 @@ def write_explanation_pack(result: RunResult, output_dir: str | Path) -> Path:
     facilities = {
         "bridge_east": {
             "label": "SYNTHETIC",
-            "role": "links nursing home and north valley to the school shelter",
+            "role": "controls the nursing home route across the west-east main river to the north-bank school shelter",
             "observed_failure_mode": "route_blocked" if any(p.status.value == "route_blocked" for p in result.people) else "not binding in this run",
+        },
+        "culvert_south": {
+            "label": "SYNTHETIC",
+            "role": "controls the south valley route along the tributary crossing to the south upland gym shelter",
+            "observed_failure_mode": "route_blocked" if any(p.status.value == "route_blocked" and p.base.location_id == "south_valley" for p in result.people) else "not binding in this run",
         },
         "comms_hill": {
             "label": "SYNTHETIC",

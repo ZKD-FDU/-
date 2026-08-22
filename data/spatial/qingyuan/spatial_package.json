@@ -14,12 +14,14 @@
       "name": "北谷村",
       "population": 220,
       "vulnerable_population": 90,
-      "risk_score": 0.0,
-      "elevation_m": 48.0,
-      "river_distance_m": 920.0,
-      "hazard_exposure": 0.32,
+      "risk_score": 0.18,
+      "elevation_m": 52.0,
+      "river_distance_m": 1200.0,
+      "hazard_exposure": 0.18,
       "administrative_level": "village",
-      "x": 121.316,
+      "evacuation_role": "watch_pretransfer",
+      "transfer_trigger": "vulnerable_pretransfer_or_isolation_risk",
+      "x": 121.318,
       "y": 31.318
     },
     {
@@ -27,11 +29,13 @@
       "name": "清源镇",
       "population": 530,
       "vulnerable_population": 110,
-      "risk_score": 0.0,
-      "elevation_m": 30.0,
-      "river_distance_m": 620.0,
-      "hazard_exposure": 0.46,
+      "risk_score": 0.22,
+      "elevation_m": 36.0,
+      "river_distance_m": 760.0,
+      "hazard_exposure": 0.22,
       "administrative_level": "town",
+      "evacuation_role": "command_support_partial",
+      "transfer_trigger": "low_lying_blocks_only",
       "x": 121.388,
       "y": 31.276
     },
@@ -40,11 +44,13 @@
       "name": "南谷村",
       "population": 180,
       "vulnerable_population": 70,
-      "risk_score": 0.0,
-      "elevation_m": 36.0,
-      "river_distance_m": 520.0,
-      "hazard_exposure": 0.52,
+      "risk_score": 0.72,
+      "elevation_m": 23.0,
+      "river_distance_m": 180.0,
+      "hazard_exposure": 0.72,
       "administrative_level": "village",
+      "evacuation_role": "priority_transfer",
+      "transfer_trigger": "tributary_backwater_or_culvert_overtopping",
       "x": 121.392,
       "y": 31.206
     },
@@ -53,37 +59,39 @@
       "name": "青松养老照料中心",
       "population": 69,
       "vulnerable_population": 55,
-      "risk_score": 0.82,
-      "elevation_m": 24.0,
-      "river_distance_m": 280.0,
-      "hazard_exposure": 0.74,
+      "risk_score": 0.88,
+      "elevation_m": 18.0,
+      "river_distance_m": 90.0,
+      "hazard_exposure": 0.88,
       "administrative_level": "institution",
-      "x": 121.35,
-      "y": 31.292
+      "evacuation_role": "mandatory_priority_transfer",
+      "transfer_trigger": "orange_response_or_water_level_warning",
+      "x": 121.352,
+      "y": 31.248
     }
   ],
   "shelters": [
     {
       "id": "school_shelter",
-      "name": "第二中学避难点",
+      "name": "第二中学避难点（北岸高地）",
       "capacity": 620,
       "service_radius_minutes": 60.0,
       "care_capacity": 80,
       "backup_power": true,
       "medical_support": true,
-      "x": 121.456,
-      "y": 31.266
+      "x": 121.458,
+      "y": 31.284
     },
     {
       "id": "gym_shelter",
-      "name": "县体育馆避难点",
+      "name": "县体育馆安置点（南部高地）",
       "capacity": 180,
       "service_radius_minutes": 45.0,
       "care_capacity": 28,
       "backup_power": true,
       "medical_support": false,
       "x": 121.432,
-      "y": 31.236
+      "y": 31.226
     }
   ],
   "rivers": [
@@ -91,36 +99,32 @@
       "id": "main_river",
       "name": "清源河主槽",
       "kind": "main_channel",
-      "flow_direction": "NW-SE",
+      "flow_direction": "W-E",
       "risk_score": 0.82,
       "coordinates": [
         [
-          121.305,
-          31.318
+          121.3,
+          31.255
         ],
         [
-          121.33,
-          31.3
+          121.335,
+          31.256
         ],
         [
-          121.356,
-          31.285
+          121.37,
+          31.255
         ],
         [
-          121.383,
-          31.268
+          121.405,
+          31.253
         ],
         [
-          121.41,
-          31.245
+          121.44,
+          31.251
         ],
         [
-          121.438,
-          31.222
-        ],
-        [
-          121.468,
-          31.205
+          121.474,
+          31.248
         ]
       ]
     },
@@ -132,12 +136,12 @@
       "risk_score": 0.68,
       "coordinates": [
         [
-          121.385,
-          31.201
+          121.386,
+          31.199
         ],
         [
           121.397,
-          31.209
+          31.207
         ],
         [
           121.409,
@@ -149,11 +153,11 @@
         ],
         [
           121.432,
-          31.236
+          31.226
         ],
         [
-          121.41,
-          31.245
+          121.405,
+          31.253
         ]
       ]
     }
@@ -172,59 +176,55 @@
           [
             [
               121.3,
-              31.326
+              31.271
             ],
             [
-              121.329,
-              31.306
+              121.335,
+              31.269
             ],
             [
-              121.358,
-              31.291
+              121.372,
+              31.267
             ],
             [
-              121.39,
-              31.274
+              121.409,
+              31.265
             ],
             [
-              121.42,
-              31.25
+              121.444,
+              31.263
             ],
             [
-              121.472,
-              31.211
+              121.474,
+              31.259
             ],
             [
-              121.464,
-              31.199
+              121.474,
+              31.236
             ],
             [
-              121.433,
-              31.219
+              121.438,
+              31.238
             ],
             [
               121.402,
-              31.241
+              31.24
             ],
             [
-              121.377,
-              31.26
+              121.366,
+              31.242
             ],
             [
-              121.346,
-              31.275
-            ],
-            [
-              121.318,
-              31.295
-            ],
-            [
-              121.298,
-              31.313
+              121.331,
+              31.244
             ],
             [
               121.3,
-              31.326
+              31.248
+            ],
+            [
+              121.3,
+              31.271
             ]
           ]
         ]
@@ -232,59 +232,55 @@
       "polygon": [
         [
           121.3,
-          31.326
+          31.271
         ],
         [
-          121.329,
-          31.306
+          121.335,
+          31.269
         ],
         [
-          121.358,
-          31.291
+          121.372,
+          31.267
         ],
         [
-          121.39,
-          31.274
+          121.409,
+          31.265
         ],
         [
-          121.42,
-          31.25
+          121.444,
+          31.263
         ],
         [
-          121.472,
-          31.211
+          121.474,
+          31.259
         ],
         [
-          121.464,
-          31.199
+          121.474,
+          31.236
         ],
         [
-          121.433,
-          31.219
+          121.438,
+          31.238
         ],
         [
           121.402,
-          31.241
+          31.24
         ],
         [
-          121.377,
-          31.26
+          121.366,
+          31.242
         ],
         [
-          121.346,
-          31.275
-        ],
-        [
-          121.318,
-          31.295
-        ],
-        [
-          121.298,
-          31.313
+          121.331,
+          31.244
         ],
         [
           121.3,
-          31.326
+          31.248
+        ],
+        [
+          121.3,
+          31.271
         ]
       ]
     },
@@ -300,80 +296,80 @@
         "coordinates": [
           [
             [
-              121.384,
-              31.202
+              121.382,
+              31.199
             ],
             [
-              121.403,
-              31.213
+              121.398,
+              31.205
             ],
             [
-              121.421,
-              31.229
+              121.414,
+              31.216
             ],
             [
-              121.433,
+              121.432,
+              31.226
+            ],
+            [
+              121.437,
               31.236
             ],
             [
-              121.426,
-              31.244
+              121.421,
+              31.232
             ],
             [
-              121.408,
-              31.229
+              121.405,
+              31.22
             ],
             [
-              121.393,
-              31.215
+              121.389,
+              31.211
             ],
             [
-              121.379,
-              31.207
-            ],
-            [
-              121.384,
-              31.202
+              121.382,
+              31.199
             ]
           ]
         ]
       },
       "polygon": [
         [
-          121.384,
-          31.202
+          121.382,
+          31.199
         ],
         [
-          121.403,
-          31.213
+          121.398,
+          31.205
         ],
         [
-          121.421,
-          31.229
+          121.414,
+          31.216
         ],
         [
-          121.433,
+          121.432,
+          31.226
+        ],
+        [
+          121.437,
           31.236
         ],
         [
-          121.426,
-          31.244
+          121.421,
+          31.232
         ],
         [
-          121.408,
-          31.229
+          121.405,
+          31.22
         ],
         [
-          121.393,
-          31.215
+          121.389,
+          31.211
         ],
         [
-          121.379,
-          31.207
-        ],
-        [
-          121.384,
-          31.202
+          121.382,
+          31.199
         ]
       ]
     }
@@ -386,7 +382,7 @@
       "closure_threshold": 0.62,
       "bridge_type": "main_river_bridge",
       "x": 121.382,
-      "y": 31.269
+      "y": 31.255
     },
     {
       "id": "bridge_south",
@@ -403,44 +399,32 @@
       "id": "route-north_valley-school_shelter",
       "origin_id": "north_valley",
       "shelter_id": "school_shelter",
-      "distance_meters": 15390.9,
-      "route_distance_m": 15390.9,
-      "travel_minutes": 36.9,
-      "risk_exposure_minutes": 30.3,
-      "risk_score": 0.82,
-      "bridge_exposure_score": 0.8,
-      "bridge_dependency": [
-        "bridge_east"
-      ],
-      "risk_zone_dependency": [
-        "floodplain_01"
-      ],
-      "crosses_high_risk": true,
+      "distance_meters": 13865.0,
+      "route_distance_m": 13865.0,
+      "travel_minutes": 33.3,
+      "risk_exposure_minutes": 0.0,
+      "risk_score": 0.0,
+      "bridge_exposure_score": 0.0,
+      "bridge_dependency": [],
+      "risk_zone_dependency": [],
+      "crosses_high_risk": false,
       "route_engine": "geojson_polyline_route",
       "coordinates": [
         [
-          121.316,
+          121.318,
           31.318
         ],
         [
-          121.338,
-          31.302
+          121.36,
+          31.312
         ],
         [
-          121.348,
-          31.294
+          121.406,
+          31.298
         ],
         [
-          121.382,
-          31.269
-        ],
-        [
-          121.421,
-          31.264
-        ],
-        [
-          121.456,
-          31.266
+          121.458,
+          31.284
         ]
       ]
     },
@@ -448,9 +432,9 @@
       "id": "route-qingyuan_town-school_shelter",
       "origin_id": "qingyuan_town",
       "shelter_id": "school_shelter",
-      "distance_meters": 6560.4,
-      "route_distance_m": 6560.4,
-      "travel_minutes": 15.7,
+      "distance_meters": 6729.3,
+      "route_distance_m": 6729.3,
+      "travel_minutes": 16.2,
       "risk_exposure_minutes": 0.0,
       "risk_score": 0.0,
       "bridge_exposure_score": 0.0,
@@ -465,11 +449,11 @@
         ],
         [
           121.421,
-          31.272
+          31.282
         ],
         [
-          121.456,
-          31.266
+          121.458,
+          31.284
         ]
       ]
     },
@@ -477,17 +461,16 @@
       "id": "route-south_valley-gym_shelter",
       "origin_id": "south_valley",
       "shelter_id": "gym_shelter",
-      "distance_meters": 5062.5,
-      "route_distance_m": 5062.5,
-      "travel_minutes": 12.2,
-      "risk_exposure_minutes": 10.0,
-      "risk_score": 0.82,
+      "distance_meters": 4463.4,
+      "route_distance_m": 4463.4,
+      "travel_minutes": 10.7,
+      "risk_exposure_minutes": 7.3,
+      "risk_score": 0.68,
       "bridge_exposure_score": 0.68,
       "bridge_dependency": [
         "bridge_south"
       ],
       "risk_zone_dependency": [
-        "floodplain_01",
         "tributary_ponding_01"
       ],
       "crosses_high_risk": true,
@@ -503,11 +486,11 @@
         ],
         [
           121.421,
-          31.228
+          31.223
         ],
         [
           121.432,
-          31.236
+          31.226
         ]
       ]
     },
@@ -515,10 +498,10 @@
       "id": "route-nursing_home-school_shelter",
       "origin_id": "nursing_home",
       "shelter_id": "school_shelter",
-      "distance_meters": 11055.7,
-      "route_distance_m": 11055.7,
-      "travel_minutes": 26.5,
-      "risk_exposure_minutes": 21.8,
+      "distance_meters": 10910.6,
+      "route_distance_m": 10910.6,
+      "travel_minutes": 26.2,
+      "risk_exposure_minutes": 21.5,
       "risk_score": 0.82,
       "bridge_exposure_score": 0.8,
       "bridge_dependency": [
@@ -531,20 +514,20 @@
       "route_engine": "geojson_polyline_route",
       "coordinates": [
         [
-          121.35,
-          31.292
+          121.352,
+          31.248
         ],
         [
           121.382,
-          31.269
+          31.255
         ],
         [
           121.421,
-          31.264
+          31.274
         ],
         [
-          121.456,
-          31.266
+          121.458,
+          31.284
         ]
       ]
     }

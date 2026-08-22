@@ -206,6 +206,21 @@ class RouteState:
         return cls(bridge_closure_minute=closure)
 
 
+def requires_transfer(person: MutablePerson | PersonAgent) -> bool:
+    base = person.base if isinstance(person, MutablePerson) else person
+    if base.location_id == "county_school":
+        return False
+    if base.location_id in {"nursing_home", "south_valley"}:
+        return True
+    if base.location_id == "north_valley":
+        return base.is_vulnerable
+    if base.location_id == "qingyuan_town":
+        return base.is_vulnerable and base.mobility != "independent"
+    if base.location_id == "county_hospital":
+        return base.is_vulnerable
+    return base.is_vulnerable
+
+
 def build_registry(people: list[MutablePerson], policy: PolicyConfig, rng: random.Random) -> set[str]:
     registered: set[str] = set()
     coverage = {
@@ -324,7 +339,11 @@ def decide_evacuation(
     time_pressure = max(0.0, min(1.0, (danger_minute - minute) / 120.0))
     direct_call = 1.0 if policy.confirmation_required and person.status == EvacuationStatus.CONFIRMED else 0.15
     assistance = 1.0 if person.base.care_support_available or policy.preposition_care_resources else 0.25
-    route_obstacle = 0.25 if person.base.location_id in {"north_valley", "nursing_home"} and minute >= 110 else 0.0
+    route_obstacle = 0.0
+    if minute >= 110 and person.base.location_id == "nursing_home":
+        route_obstacle = 0.25
+    elif minute >= 125 and person.base.location_id == "south_valley":
+        route_obstacle = 0.18
     factors = {
         "risk_perception": 1.45 * (person.base.risk_perception + (1.0 - time_pressure) * 0.55),
         "official_trust": 0.95 * person.base.official_trust,
@@ -366,6 +385,8 @@ def create_waiting_tasks(people: list[MutablePerson], policy: PolicyConfig, minu
     for person in people:
         if person.status != EvacuationStatus.CONFIRMED:
             continue
+        if not requires_transfer(person):
+            continue
         if policy.confirmation_required or minute >= 90:
             person.status = EvacuationStatus.WAITING_TRANSFER
             person.waiting_minute = minute
@@ -397,7 +418,7 @@ def dispatch_waiting_people(
         if resources.shelter_beds_remaining <= 0:
             person.status = EvacuationStatus.UNSUITABLE_SHELTER
             continue
-        if routes.bridge_closed and person.base.location_id in {"nursing_home", "north_valley"}:
+        if routes.bridge_closed and person.base.location_id == "nursing_home":
             person.status = EvacuationStatus.ROUTE_BLOCKED
             person.reason = "bridge_east closed before transfer"
             continue
@@ -417,7 +438,7 @@ def dispatch_waiting_people(
         person.status = EvacuationStatus.IN_TRANSIT
         person.transit_minute = minute
         travel = 20 if person.base.location_id == "qingyuan_town" else 35
-        if policy.id == PolicyId.S5 and person.base.location_id in {"nursing_home", "north_valley"}:
+        if policy.id == PolicyId.S5 and person.base.location_id in {"nursing_home", "south_valley"}:
             travel -= 10
         if minute + travel <= 240:
             person.status = EvacuationStatus.SHELTERED
@@ -438,7 +459,7 @@ def update_exposure(people: list[MutablePerson], minute: int, danger_minute: int
             vulnerability += 0.060
         if person.base.age >= 75:
             vulnerability += 0.025
-        if person.base.location_id in {"nursing_home", "north_valley", "south_valley"}:
+        if person.base.location_id in {"nursing_home", "south_valley"}:
             vulnerability += 0.020
         person.harm_risk += vulnerability
 
@@ -474,7 +495,7 @@ def compute_metrics(
 ) -> MetricRecord:
     vulnerable = [p for p in people if p.base.is_vulnerable]
     general = [p for p in people if not p.base.is_vulnerable]
-    should_transfer = [p for p in people if p.base.location_id != "county_school"]
+    should_transfer = [p for p in people if requires_transfer(p)]
     safe = [p for p in should_transfer if p.status == EvacuationStatus.SHELTERED and (p.sheltered_minute or 99999) <= danger_minute]
     vulnerable_safe = [p for p in vulnerable if p.status == EvacuationStatus.SHELTERED and (p.sheltered_minute or 99999) <= danger_minute]
     general_safe = [p for p in general if p.status == EvacuationStatus.SHELTERED and (p.sheltered_minute or 99999) <= danger_minute]
@@ -541,8 +562,10 @@ def event(minute: int, kind: str, message: str, payload: dict[str, Any]) -> dict
 
 
 def route_urgency(person: MutablePerson, routes: RouteState) -> int:
-    if person.base.location_id in {"nursing_home", "north_valley"}:
+    if person.base.location_id == "nursing_home":
         return routes.bridge_closure_minute
+    if person.base.location_id == "south_valley":
+        return routes.bridge_closure_minute + 15
     return 999
 
 

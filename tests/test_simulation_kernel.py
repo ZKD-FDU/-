@@ -1,6 +1,6 @@
 import unittest
 
-from hongce.engine import run_policy
+from hongce.engine import requires_transfer, run_policy
 from hongce.experiments import run_named_experiments, run_policy_batch, write_explanation_pack
 from hongce.models import EvacuationStatus, PolicyId
 from hongce.scenario import generate_qingyuan
@@ -34,6 +34,18 @@ class SimulationKernelTest(unittest.TestCase):
         for person in bedridden:
             if person.status == EvacuationStatus.SHELTERED:
                 self.assertIsNotNone(person.transit_minute)
+
+    def test_transfer_targets_follow_west_east_hydrology_roles(self) -> None:
+        scenario = generate_qingyuan(seed=141, population=700)
+        north_general = next(p for p in scenario.people if p.location_id == "north_valley" and not p.is_vulnerable)
+        north_vulnerable = next(p for p in scenario.people if p.location_id == "north_valley" and p.is_vulnerable)
+        south_general = next(p for p in scenario.people if p.location_id == "south_valley" and not p.is_vulnerable)
+        nursing_resident = next(p for p in scenario.people if p.location_id == "nursing_home")
+
+        self.assertFalse(requires_transfer(north_general))
+        self.assertTrue(requires_transfer(north_vulnerable))
+        self.assertTrue(requires_transfer(south_general))
+        self.assertTrue(requires_transfer(nursing_resident))
 
     def test_batch_uses_actual_runs(self) -> None:
         result = run_policy_batch(policies=["S0", "S3", "S5"], seeds=[21, 22], population=250, output_dir="outputs/test_experiments")

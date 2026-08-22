@@ -207,11 +207,11 @@ def generate_qingyuan(seed: int = 20260806, population: int = 2000) -> Synthetic
             defect_level=3,
             repair_cost=45,
             repair_duration_hours=36,
-            affected_population_ids=[p.id for p in people if p.location_id in {"nursing_home", "north_valley"}],
-            related_route_ids=["route_nursing_to_school", "route_north_valley_to_school"],
+            affected_population_ids=[p.id for p in people if p.location_id == "nursing_home"],
+            related_route_ids=["route_nursing_to_school"],
         ),
         InfrastructureNode(
-            id="road_valley_south",
+            id="culvert_south",
             kind="road",
             health=0.55,
             last_inspection_day=-90,
@@ -219,7 +219,7 @@ def generate_qingyuan(seed: int = 20260806, population: int = 2000) -> Synthetic
             repair_cost=25,
             repair_duration_hours=18,
             affected_population_ids=[p.id for p in people if p.location_id == "south_valley"],
-            related_route_ids=["route_south_valley_to_school"],
+            related_route_ids=["route_south_valley_to_gym"],
         ),
         InfrastructureNode(
             id="comms_hill",

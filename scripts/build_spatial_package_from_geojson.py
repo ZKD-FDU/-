@@ -95,7 +95,8 @@ def load_optional_features(path: Path) -> list[dict[str, Any]]:
 def place_row(feature: dict[str, Any], risks: list[dict[str, Any]]) -> dict[str, Any]:
     props = feature.get("properties", {})
     point = centroid(feature)
-    risk_score = max((risk_score_of(risk) for risk in risks if point_in_feature(point, risk)), default=0.0)
+    hazard_exposure = optional_float(props.get("hazard_exposure"))
+    risk_score = max(max((risk_score_of(risk) for risk in risks if point_in_feature(point, risk)), default=0.0), hazard_exposure or 0.0)
     return {
         "id": str(props.get("id")),
         "name": str(props.get("name")),
@@ -104,8 +105,10 @@ def place_row(feature: dict[str, Any], risks: list[dict[str, Any]]) -> dict[str,
         "risk_score": round(risk_score, 3),
         "elevation_m": optional_float(props.get("elevation_m")),
         "river_distance_m": optional_float(props.get("river_distance_m")),
-        "hazard_exposure": optional_float(props.get("hazard_exposure")),
+        "hazard_exposure": hazard_exposure,
         "administrative_level": str(props.get("administrative_level", "")),
+        "evacuation_role": str(props.get("evacuation_role", "standard_transfer")),
+        "transfer_trigger": str(props.get("transfer_trigger", "graded_response")),
         "x": round(point[0], 6),
         "y": round(point[1], 6),
     }

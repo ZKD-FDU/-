@@ -159,7 +159,8 @@ def collect_places(layer, risk_zones: list[dict[str, Any]]) -> list[dict[str, An
     places = []
     for feature in layer.getFeatures():
         point = feature.geometry().centroid()
-        risk_score = max((zone["risk_score"] for zone in risk_zones if intersects(point, zone["_geometry"])), default=0.0)
+        hazard_exposure = optional_float(feature, "hazard_exposure")
+        risk_score = max(max((zone["risk_score"] for zone in risk_zones if intersects(point, zone["_geometry"])), default=0.0), hazard_exposure or 0.0)
         places.append(
             {
                 "id": field(feature, "id", f"place-{feature.id()}"),
@@ -169,8 +170,10 @@ def collect_places(layer, risk_zones: list[dict[str, Any]]) -> list[dict[str, An
                 "risk_score": round(risk_score, 3),
                 "elevation_m": optional_float(feature, "elevation_m"),
                 "river_distance_m": optional_float(feature, "river_distance_m"),
-                "hazard_exposure": optional_float(feature, "hazard_exposure"),
+                "hazard_exposure": hazard_exposure,
                 "administrative_level": field(feature, "administrative_level", ""),
+                "evacuation_role": field(feature, "evacuation_role", "standard_transfer"),
+                "transfer_trigger": field(feature, "transfer_trigger", "graded_response"),
                 "x": round(point.asPoint().x(), 6),
                 "y": round(point.asPoint().y(), 6),
             }

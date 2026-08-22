@@ -12,13 +12,13 @@
       "type": "Feature",
       "properties": {
         "id": "road_north_school",
-        "name": "北谷-东桥-学校道路",
+        "name": "北谷-北岸高地-学校道路",
         "origin_id": "north_valley",
         "shelter_id": "school_shelter",
         "speed_kmh": 24,
-        "road_class": "county"
+        "road_class": "upland_county"
       },
-      "geometry": { "type": "LineString", "coordinates": [[121.316, 31.318], [121.338, 31.302], [121.348, 31.294], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] }
+      "geometry": { "type": "LineString", "coordinates": [[121.318, 31.318], [121.36, 31.312], [121.406, 31.298], [121.458, 31.284]] }
     },
     {
       "type": "Feature",
@@ -28,9 +28,9 @@
         "origin_id": "qingyuan_town",
         "shelter_id": "school_shelter",
         "speed_kmh": 28,
-        "road_class": "urban"
+        "road_class": "urban_terrace"
       },
-      "geometry": { "type": "LineString", "coordinates": [[121.388, 31.276], [121.421, 31.272], [121.456, 31.266]] }
+      "geometry": { "type": "LineString", "coordinates": [[121.388, 31.276], [121.421, 31.282], [121.458, 31.284]] }
     },
     {
       "type": "Feature",
@@ -40,9 +40,9 @@
         "origin_id": "south_valley",
         "shelter_id": "gym_shelter",
         "speed_kmh": 22,
-        "road_class": "township"
+        "road_class": "township_culvert"
       },
-      "geometry": { "type": "LineString", "coordinates": [[121.392, 31.206], [121.409, 31.218], [121.421, 31.228], [121.432, 31.236]] }
+      "geometry": { "type": "LineString", "coordinates": [[121.392, 31.206], [121.409, 31.218], [121.421, 31.223], [121.432, 31.226]] }
     },
     {
       "type": "Feature",
@@ -54,7 +54,7 @@
         "speed_kmh": 20,
         "road_class": "care_transfer"
       },
-      "geometry": { "type": "LineString", "coordinates": [[121.35, 31.292], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] }
+      "geometry": { "type": "LineString", "coordinates": [[121.352, 31.248], [121.382, 31.255], [121.421, 31.274], [121.458, 31.284]] }
     }
   ]
 }

@@ -12,27 +12,27 @@
       "type": "Feature",
       "properties": {
         "id": "school_shelter",
-        "name": "第二中学避难点",
+        "name": "第二中学避难点（北岸高地）",
         "capacity": 620,
         "service_radius_minutes": 60,
         "care_capacity": 80,
         "backup_power": true,
         "medical_support": true
       },
-      "geometry": { "type": "Point", "coordinates": [121.456, 31.266] }
+      "geometry": { "type": "Point", "coordinates": [121.458, 31.284] }
     },
     {
       "type": "Feature",
       "properties": {
         "id": "gym_shelter",
-        "name": "县体育馆避难点",
+        "name": "县体育馆安置点（南部高地）",
         "capacity": 180,
         "service_radius_minutes": 45,
         "care_capacity": 28,
         "backup_power": true,
         "medical_support": false
       },
-      "geometry": { "type": "Point", "coordinates": [121.432, 31.236] }
+      "geometry": { "type": "Point", "coordinates": [121.432, 31.226] }
     }
   ]
 }
