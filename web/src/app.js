@@ -130,7 +130,7 @@ async function init() {
     } catch (error) {
       state.spatialContext = null;
       state.spatialPackage = fallbackSpatialMap;
-      setNotice(`空间包暂用离线 fallback：${error.message || "API 未提供空间包"}`);
+      setNotice("空间包暂用内置 QGIS 演示图层；启动新版 API 后会自动读取 data/spatial/qingyuan。");
     }
     await loadCases();
     await loadParameters();
@@ -562,7 +562,7 @@ function overview() {
       ${metric("闭环响应", pct(m.response_closure_rate))}
       ${metric("平均排队分钟", num(m.resource_queue_minutes_mean), "neutral")}
     </section>
-    <section class="map-band">
+    <section class="map-band command-band">
       ${terrainMap(m)}
       <div class="side-table">
         <h2>最新运行</h2>
@@ -659,13 +659,16 @@ function terrainMap(metrics = {}) {
   const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
   const source = state.spatialContext?.package_id || spatial.package_id || "fallback";
   const method = spatial.method?.route_engine || "unknown";
-  return `<div class="terrain-panel" id="terrain-panel">
+  return `<div class="terrain-panel command-terrain-panel" id="terrain-panel">
     <div class="terrain-toolbar">
-      <div><strong>QGIS 实时空间态势图</strong><span>空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
+      <div><strong>洪策水文预报数字孪生态势图</strong><span>空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
       <div class="map-badges"><span>t=${live.minute}′</span><span class="${live.commsDegraded ? "bad" : "good"}">通信${live.commsDegraded ? "受损" : "正常"}</span><span class="${live.bridgeClosed ? "bad" : "good"}">桥涵${live.bridgeClosed ? "封闭" : "可通行"}</span><span>安全转移 ${safeRate}%</span></div>
     </div>
-    <div id="standard-geo-map" class="standard-geo-map" aria-label="标准地理底图叠加 QGIS 实时空间态势"></div>
-    <div class="terrain-fallback" aria-label="离线示意地形图">
+    <div class="command-map-frame">
+      <div id="standard-geo-map" class="standard-geo-map" aria-label="标准地理底图叠加 QGIS 实时空间态势"></div>
+      <div class="map-vignette"></div>
+      ${commandHud(live, metrics, spatial)}
+      <div class="terrain-fallback" aria-label="离线示意地形图">
     <svg class="terrain-map" viewBox="0 0 1000 620" role="img" aria-label="洪策 QGIS 地形态势图">
       <defs>
         <linearGradient id="terrainBase" x1="0" y1="0" x2="1" y2="1">
@@ -701,6 +704,7 @@ function terrainMap(metrics = {}) {
         <text y="42">N</text>
       </g>
     </svg>
+      </div>
     </div>
     <div class="live-strip">
       <div><strong>${live.shelteredTotal}</strong><span>已安置对象</span></div>
@@ -716,6 +720,53 @@ function terrainMap(metrics = {}) {
       <span><i class="legend shelter"></i>避难点</span>
       <span>资源排队 ${queue} 分钟</span>
     </div>
+  </div>`;
+}
+
+function commandHud(live, metrics = {}, spatial = {}) {
+  const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
+  const harmRisk = Math.round(Number(metrics.vulnerable_harm_risk || 0) * 1000) / 10;
+  const closureRate = Math.round(Number(metrics.response_closure_rate || 0) * 1000) / 10;
+  const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
+  const routeCount = spatial.routes?.length || 0;
+  const highRiskRoutes = (spatial.routes || []).filter((route) => route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65).length;
+  const shelterBeds = spatial.coverage?.total_shelter_capacity || spatial.shelters?.reduce((sum, shelter) => sum + Number(shelter.capacity || 0), 0) || 0;
+  const gauges = [
+    ["上游雨强", 68, "mm/h"],
+    ["河道水位", live.bridgeClosed ? 86 : 63, "%"],
+    ["支沟倒灌", live.bridgeClosed ? 78 : 52, "%"],
+    ["床位占用", shelterBeds ? Math.min(100, Math.round((live.shelteredTotal / shelterBeds) * 100)) : 0, "%"]
+  ];
+  return `<div class="forecast-tabs">
+    ${["水文预报", "预警设置", "模拟预演", "预案生成"].map((item, index) => `<span class="${index === 0 ? "active" : ""}">${item}</span>`).join("")}
+  </div>
+  <aside class="hud-panel hud-left">
+    <h3>水文预报</h3>
+    <div class="hud-kpis">
+      <span><b>${live.dangerEta}′</b><small>危险提前量</small></span>
+      <span><b>${safeRate}%</b><small>安全转移</small></span>
+      <span><b>${harmRisk}%</b><small>脆弱风险</small></span>
+    </div>
+    <div class="hydro-bars">
+      ${gauges.map(([label, value, unit]) => `<label><span>${label}</span><i><em style="height:${value}%"></em></i><b>${value}${unit}</b></label>`).join("")}
+    </div>
+  </aside>
+  <aside class="hud-panel hud-right">
+    <h3>预案生成</h3>
+    <div class="plan-steps">
+      <span class="done">蓝黄橙红响应阈值</span>
+      <span class="${live.commsDegraded ? "warn" : "done"}">叫应链路 ${live.commsDegraded ? "备用" : "正常"}</span>
+      <span class="${live.bridgeClosed ? "warn" : "done"}">桥涵状态 ${live.bridgeClosed ? "封控" : "可通行"}</span>
+      <span>高风险路线 ${highRiskRoutes}/${routeCount}</span>
+    </div>
+    <div class="mini-readout">
+      <span><b>${closureRate}%</b>闭环响应</span>
+      <span><b>${queue}</b>排队分钟</span>
+      <span><b>${live.blockedTotal}</b>受阻对象</span>
+    </div>
+  </aside>
+  <div class="hydro-bottom">
+    ${gauges.map(([label, value]) => `<span><i style="width:${value}%"></i><b>${label}</b></span>`).join("")}
   </div>`;
 }
 
@@ -745,8 +796,14 @@ function hydrateStandardMap() {
     maxZoom: 18,
     attribution: "Imagery &copy; Esri"
   });
-  topo.addTo(map);
-  L.control.layers({ "地形底图": topo, "街道底图": street, "卫星影像": imagery }, {}, { position: "topleft" }).addTo(map);
+  const hillshade = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 18,
+    opacity: 0.42,
+    attribution: "Hillshade &copy; Esri"
+  });
+  imagery.addTo(map);
+  hillshade.addTo(map);
+  L.control.layers({ "卫星影像": imagery, "地形底图": topo, "街道底图": street }, { "地形阴影": hillshade }, { position: "topleft" }).addTo(map);
 
   const featureBounds = [];
   const toLatLng = ([lon, lat]) => [lat, lon];
@@ -758,8 +815,8 @@ function hydrateStandardMap() {
     L.polygon(latLngs, {
       color: Number(zone.risk_score || 0) >= 0.75 ? "#8f3f2f" : "#b3792e",
       weight: 2,
-      fillColor: Number(zone.risk_score || 0) >= 0.75 ? "#b76646" : "#d6a044",
-      fillOpacity: 0.34
+      fillColor: Number(zone.risk_score || 0) >= 0.75 ? "#ff7b3d" : "#ffd34f",
+      fillOpacity: Number(zone.risk_score || 0) >= 0.75 ? 0.46 : 0.34
     }).bindPopup(`<strong>${escapeHtml(zone.name || zone.id)}</strong><br>风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%`).addTo(map);
   }
 
@@ -767,9 +824,9 @@ function hydrateStandardMap() {
     const latLngs = river.coordinates.map(toLatLng);
     addBounds(river.coordinates);
     L.polyline(latLngs, {
-      color: river.kind === "tributary_culvert" ? "#2b8aa6" : "#1f7195",
-      weight: river.kind === "tributary_culvert" ? 4 : 7,
-      opacity: 0.78
+      color: river.kind === "tributary_culvert" ? "#28d7ff" : "#17a9ff",
+      weight: river.kind === "tributary_culvert" ? 5 : 9,
+      opacity: 0.86
     }).bindPopup(`<strong>${escapeHtml(river.name || river.id)}</strong><br>流向 ${escapeHtml(river.flow_direction || "上游至下游")}`).addTo(map);
     const end = latLngs[latLngs.length - 1];
     L.marker(end, {
