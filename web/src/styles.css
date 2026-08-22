@@ -421,21 +421,40 @@ section {
 }
 
 .terrain-toolbar {
-  min-height: 62px;
-  padding: 14px 16px 10px;
+  min-height: 74px;
+  padding: 14px 18px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 14px;
-  border-bottom: 1px solid rgba(82, 166, 255, 0.25);
-  background: linear-gradient(90deg, rgba(8, 29, 53, 0.96), rgba(12, 49, 83, 0.92));
+  border-bottom: 1px solid rgba(82, 200, 255, 0.32);
+  background:
+    linear-gradient(90deg, rgba(8, 26, 52, 0.98), rgba(11, 62, 91, 0.9), rgba(17, 38, 62, 0.98)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent);
   color: #eaf6ff;
+  box-shadow: inset 0 -1px 0 rgba(80, 233, 255, 0.18), 0 14px 36px rgba(2, 10, 22, 0.2);
 }
 
 .terrain-toolbar strong {
   display: block;
-  font-size: 18px;
+  font-size: 22px;
   letter-spacing: 0;
+}
+
+.command-title-block {
+  position: relative;
+  padding-left: 14px;
+}
+
+.command-title-block::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 4px;
+  background: linear-gradient(180deg, #50e9ff, #ffbf5a);
+  box-shadow: 0 0 18px rgba(80, 233, 255, 0.62);
 }
 
 .terrain-toolbar span,
@@ -454,9 +473,10 @@ section {
 .map-badges span {
   border: 1px solid rgba(91, 174, 255, 0.35);
   background: rgba(7, 25, 44, 0.68);
-  border-radius: 999px;
-  padding: 5px 8px;
+  border-radius: 4px;
+  padding: 6px 10px;
   color: #d6efff;
+  box-shadow: inset 0 0 18px rgba(64, 190, 255, 0.08);
 }
 
 .map-badges .good {
@@ -473,11 +493,35 @@ section {
 
 .command-map-frame {
   position: relative;
-  min-height: 560px;
+  min-height: 650px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 55%, rgba(37, 141, 204, 0.24), transparent 40%),
-    linear-gradient(145deg, #071523, #102b48);
+    radial-gradient(circle at 50% 45%, rgba(30, 153, 202, 0.28), transparent 34%),
+    radial-gradient(circle at 70% 66%, rgba(255, 168, 70, 0.14), transparent 28%),
+    linear-gradient(145deg, #041222, #0b2b4b 52%, #102034);
+}
+
+.command-map-frame::before,
+.command-map-frame::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 415;
+}
+
+.command-map-frame::before {
+  background:
+    linear-gradient(rgba(80, 233, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 233, 255, 0.045) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(circle at 50% 48%, black 0%, transparent 72%);
+}
+
+.command-map-frame::after {
+  border: 1px solid rgba(93, 207, 255, 0.28);
+  box-shadow: inset 0 0 42px rgba(18, 168, 238, 0.18);
+  background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.025) 50%, transparent 100%);
 }
 
 .terrain-map {
@@ -490,11 +534,12 @@ section {
 .scenario-3d-map {
   display: none;
   width: 100%;
-  height: min(70vh, 720px);
-  min-height: 590px;
+  height: min(74vh, 760px);
+  min-height: 650px;
   background:
-    radial-gradient(circle at 50% 42%, rgba(41, 136, 194, 0.2), transparent 44%),
-    linear-gradient(145deg, #061321, #0b2946);
+    radial-gradient(circle at 50% 42%, rgba(41, 176, 225, 0.24), transparent 44%),
+    radial-gradient(circle at 62% 60%, rgba(255, 173, 72, 0.1), transparent 34%),
+    linear-gradient(145deg, #061321, #0a2742);
   border-bottom: 1px solid rgba(82, 166, 255, 0.22);
   cursor: grab;
   touch-action: none;
@@ -546,8 +591,9 @@ section {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 45%, transparent 0%, transparent 48%, rgba(3, 14, 27, 0.42) 100%),
-    linear-gradient(90deg, rgba(5, 18, 34, 0.88), transparent 22%, transparent 76%, rgba(5, 18, 34, 0.86));
+    radial-gradient(circle at 50% 43%, transparent 0%, transparent 46%, rgba(3, 14, 27, 0.44) 100%),
+    linear-gradient(90deg, rgba(5, 18, 34, 0.92), transparent 20%, transparent 77%, rgba(5, 18, 34, 0.9)),
+    linear-gradient(180deg, rgba(4, 16, 31, 0.76), transparent 20%, transparent 72%, rgba(4, 16, 31, 0.84));
   z-index: 410;
 }
 
@@ -666,22 +712,47 @@ section {
 
 .forecast-tabs,
 .hud-panel,
-.hydro-bottom {
+.hydro-bottom,
+.layer-stack,
+.dispatch-timeline,
+.command-watermark {
   position: absolute;
   z-index: 420;
   backdrop-filter: blur(12px);
 }
 
+.command-watermark {
+  left: 18px;
+  top: 16px;
+  display: grid;
+  gap: 2px;
+  color: #b9d8ed;
+  text-transform: uppercase;
+}
+
+.command-watermark span {
+  color: rgba(213, 238, 255, 0.76);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.command-watermark b {
+  color: #ffffff;
+  font-size: 24px;
+  letter-spacing: 0;
+  text-shadow: 0 0 18px rgba(80, 233, 255, 0.5);
+}
+
 .forecast-tabs {
   left: 50%;
-  top: 14px;
+  top: 16px;
   transform: translateX(-50%);
   display: grid;
   grid-template-columns: repeat(4, minmax(90px, 1fr));
   min-width: min(560px, 72%);
-  border: 1px solid rgba(91, 174, 255, 0.42);
-  background: rgba(8, 35, 68, 0.72);
-  box-shadow: 0 0 24px rgba(39, 148, 255, 0.28);
+  border: 1px solid rgba(91, 210, 255, 0.48);
+  background: rgba(5, 26, 50, 0.78);
+  box-shadow: 0 0 28px rgba(39, 148, 255, 0.36), inset 0 0 24px rgba(80, 233, 255, 0.08);
 }
 
 .forecast-tabs button {
@@ -689,7 +760,7 @@ section {
   border: 0;
   text-align: center;
   color: #b9d8ed;
-  padding: 8px 12px;
+  padding: 10px 12px;
   font-weight: 800;
   border-right: 1px solid rgba(91, 174, 255, 0.25);
   background: transparent;
@@ -702,8 +773,8 @@ section {
 
 .forecast-tabs .active {
   color: white;
-  background: linear-gradient(180deg, #2e65be, #173e81);
-  box-shadow: inset 0 -2px 0 #66e6ff;
+  background: linear-gradient(180deg, #2d7bd5, #114882);
+  box-shadow: inset 0 -2px 0 #66e6ff, 0 0 20px rgba(80, 233, 255, 0.34);
 }
 
 .forecast-tabs button:hover {
@@ -712,27 +783,37 @@ section {
 }
 
 .hud-panel {
-  top: 72px;
-  width: 245px;
-  border: 1px solid rgba(91, 174, 255, 0.34);
-  background: linear-gradient(180deg, rgba(7, 28, 51, 0.88), rgba(8, 42, 75, 0.72));
+  top: 94px;
+  width: 284px;
+  border: 1px solid rgba(91, 210, 255, 0.38);
+  background:
+    linear-gradient(180deg, rgba(6, 28, 52, 0.93), rgba(8, 44, 75, 0.76)),
+    radial-gradient(circle at 100% 0%, rgba(80, 233, 255, 0.18), transparent 38%);
   color: #d9f1ff;
-  box-shadow: inset 0 0 0 1px rgba(137, 203, 255, 0.1), 0 14px 32px rgba(0, 0, 0, 0.28);
-  padding: 14px;
+  box-shadow: inset 0 0 0 1px rgba(137, 203, 255, 0.12), 0 20px 45px rgba(0, 0, 0, 0.34);
+  padding: 15px;
+  clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
 }
 
 .hud-left {
-  left: 14px;
+  left: 18px;
 }
 
 .hud-right {
-  right: 14px;
+  right: 18px;
 }
 
 .hud-panel h3 {
-  margin: 0 0 12px;
-  font-size: 16px;
+  margin: 0 0 13px;
+  font-size: 18px;
   color: #ffffff;
+}
+
+.hud-eyebrow {
+  margin: 0 0 4px;
+  color: #68e5ff;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .hud-kpis {
@@ -751,7 +832,8 @@ section {
 .hud-kpis b,
 .mini-readout b {
   color: #50e9ff;
-  font-size: 18px;
+  font-size: 20px;
+  text-shadow: 0 0 16px rgba(80, 233, 255, 0.32);
 }
 
 .hud-kpis small,
@@ -807,7 +889,7 @@ section {
 
 .plan-steps span {
   border-left: 3px solid #48dbb4;
-  background: rgba(20, 78, 103, 0.4);
+  background: linear-gradient(90deg, rgba(20, 105, 111, 0.5), rgba(14, 52, 81, 0.34));
   padding: 7px 8px;
 }
 
@@ -823,7 +905,7 @@ section {
 
 .threshold-list span {
   display: grid;
-  grid-template-columns: 76px 1fr 42px;
+  grid-template-columns: 82px 1fr 44px;
   gap: 8px;
   align-items: center;
   color: #b9d8ed;
@@ -858,16 +940,94 @@ section {
   border-top: 1px solid rgba(91, 174, 255, 0.24);
 }
 
+.layer-stack {
+  left: 18px;
+  bottom: 86px;
+  display: grid;
+  gap: 8px;
+  width: 178px;
+}
+
+.layer-stack span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(91, 174, 255, 0.28);
+  background: rgba(5, 25, 47, 0.68);
+  color: #d9f1ff;
+  padding: 7px 9px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.layer-stack i {
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: #48dbb4;
+  box-shadow: 0 0 12px rgba(72, 219, 180, 0.75);
+}
+
+.layer-stack .warn i {
+  background: #ffbf5a;
+  box-shadow: 0 0 12px rgba(255, 191, 90, 0.8);
+}
+
+.layer-stack .standby {
+  color: #8caac0;
+}
+
+.layer-stack .standby i {
+  background: #627b8d;
+  box-shadow: none;
+}
+
+.dispatch-timeline {
+  right: 18px;
+  bottom: 86px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(52px, 1fr));
+  gap: 8px;
+  width: min(420px, 38%);
+  padding: 8px 10px;
+  border: 1px solid rgba(91, 174, 255, 0.28);
+  background: rgba(5, 25, 47, 0.72);
+}
+
+.dispatch-timeline span {
+  display: grid;
+  gap: 5px;
+  color: #8caac0;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.dispatch-timeline i {
+  height: 4px;
+  background: rgba(98, 123, 141, 0.55);
+}
+
+.dispatch-timeline .done {
+  color: #dff9ff;
+}
+
+.dispatch-timeline .done i {
+  background: linear-gradient(90deg, #35d9ff, #48dbb4);
+  box-shadow: 0 0 12px rgba(53, 217, 255, 0.45);
+}
+
 .hydro-bottom {
   left: 16px;
   right: 16px;
-  bottom: 14px;
+  bottom: 16px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid rgba(91, 174, 255, 0.28);
-  background: rgba(7, 25, 44, 0.78);
+  border: 1px solid rgba(91, 174, 255, 0.32);
+  background: linear-gradient(90deg, rgba(7, 25, 44, 0.84), rgba(10, 53, 76, 0.72));
+  box-shadow: inset 0 0 24px rgba(80, 233, 255, 0.07);
 }
 
 .hydro-bottom span {
@@ -1556,15 +1716,15 @@ th {
   }
 
   .command-map-frame {
-    min-height: 760px;
+    min-height: 900px;
   }
 
   .standard-geo-map {
-    height: 760px;
+    height: 900px;
   }
 
   .scenario-3d-map {
-    height: 760px;
+    height: 900px;
   }
 
   .forecast-tabs {
@@ -1575,10 +1735,28 @@ th {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .command-watermark {
+    top: 88px;
+    left: 12px;
+  }
+
+  .layer-stack {
+    top: 158px;
+    bottom: auto;
+    left: 12px;
+    width: 160px;
+  }
+
+  .dispatch-timeline {
+    right: 12px;
+    bottom: 88px;
+    width: calc(100% - 24px);
+  }
+
   .hud-panel {
     top: auto;
     width: calc(50% - 18px);
-    bottom: 88px;
+    bottom: 160px;
   }
 
   .hud-left {
@@ -1629,20 +1807,26 @@ th {
   }
 
   .command-map-frame {
-    min-height: 700px;
+    min-height: 760px;
   }
 
   .standard-geo-map {
-    height: 700px;
+    height: 760px;
   }
 
   .scenario-3d-map {
-    height: 700px;
+    height: 760px;
   }
 
   .forecast-tabs,
   .hydro-bottom {
     grid-template-columns: 1fr;
+  }
+
+  .command-watermark,
+  .layer-stack,
+  .dispatch-timeline {
+    display: none;
   }
 
   .hud-panel {

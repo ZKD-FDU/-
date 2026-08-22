@@ -674,12 +674,13 @@ function terrainMap(metrics = {}) {
   const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
   const source = state.spatialContext?.package_id || spatial.package_id || "fallback";
   const method = spatial.method?.route_engine || "unknown";
+  const mode = state.mapMode || "hydrology";
   return `<div class="terrain-panel command-terrain-panel" id="terrain-panel">
     <div class="terrain-toolbar">
-      <div><strong>洪策水文预报数字孪生态势图</strong><span>空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
+      <div class="command-title-block"><strong>清源县极端洪涝人员转移联合指挥舱</strong><span>县防汛抗旱指挥部 · 空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
       <div class="map-badges"><span>t=${live.minute}′</span><span class="${live.commsDegraded ? "bad" : "good"}">通信${live.commsDegraded ? "受损" : "正常"}</span><span class="${live.bridgeClosed ? "bad" : "good"}">桥涵${live.bridgeClosed ? "封闭" : "可通行"}</span><span>安全转移 ${safeRate}%</span></div>
     </div>
-    <div class="command-map-frame">
+    <div class="command-map-frame" data-command-mode="${mode}">
       <div id="scenario-3d-map" class="scenario-3d-map" aria-label="三维洪涝转移数字孪生场景"></div>
       <div id="standard-geo-map" class="standard-geo-map" aria-label="标准地理底图叠加 QGIS 实时空间态势"></div>
       <div class="map-vignette"></div>
@@ -766,8 +767,10 @@ function renderScenario3D(THREE, panel, container) {
   const live = liveSpatialState(spatial);
   const mode = state.mapMode || "hydrology";
   const bounds = mapBounds(spatial);
-  const width = container.clientWidth || 960;
-  const height = container.clientHeight || 560;
+  panel.classList.add("three-ready");
+  const rect = container.getBoundingClientRect();
+  const width = Math.round(rect.width || container.clientWidth || 960);
+  const height = Math.round(rect.height || container.clientHeight || 650);
   container.innerHTML = "";
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -777,22 +780,25 @@ function renderScenario3D(THREE, panel, container) {
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x061321, 54, 130);
-  const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 220);
-  camera.position.set(0, 34, 58);
+  scene.fog = new THREE.Fog(0x061321, 48, 138);
+  const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 240);
+  camera.position.set(0, 35, 62);
 
   const root = new THREE.Group();
-  root.rotation.x = -0.62;
+  root.rotation.x = -0.58;
   root.rotation.y = -0.25;
   scene.add(root);
 
   const keyLight = new THREE.DirectionalLight(0xdff6ff, 2.6);
   keyLight.position.set(-18, 36, 28);
   scene.add(keyLight);
-  scene.add(new THREE.AmbientLight(0x5ba8d6, 1.05));
+  scene.add(new THREE.AmbientLight(0x5ba8d6, 1.12));
   const rimLight = new THREE.PointLight(0x2bd8ff, 1.4, 120);
   rimLight.position.set(18, 18, -22);
   scene.add(rimLight);
+  const warningLight = new THREE.PointLight(mode === "warning" ? 0xff9d42 : 0x22c8ff, 1.6, 90);
+  warningLight.position.set(-26, 14, 14);
+  scene.add(warningLight);
 
   const project = ([lon, lat]) => {
     const x = ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon) - 0.5) * 82;
@@ -807,6 +813,8 @@ function renderScenario3D(THREE, panel, container) {
 
   const terrain = buildTerrainMesh(THREE, elevationAt);
   root.add(terrain);
+  root.add(buildCommandGrid(THREE));
+  root.add(buildRainAndGaugeLayer(THREE, mode, live));
 
   for (const zone of spatial.risk_zones) root.add(buildPolygonMesh(THREE, zone.polygon.map(project), mode === "simulation" ? 0.34 : 0.5, elevationAt));
   for (const river of spatial.rivers) root.add(buildTube(THREE, river.coordinates.map(project), elevationAt, river.kind === "tributary_culvert" ? 0.15 : 0.28, 0x27d8ff, 0.9));
@@ -831,9 +839,8 @@ function renderScenario3D(THREE, panel, container) {
     root.add(buildBridgeMarker(THREE, bridge, x, elevationAt(x, z), z, live.bridgeClosed));
   }
 
+  root.add(buildScanningBeam(THREE, mode));
   root.add(buildCompass(THREE));
-  panel.classList.add("three-ready");
-
   let dragging = false;
   let lastX = 0;
   let lastY = 0;
@@ -866,6 +873,11 @@ function renderScenario3D(THREE, panel, container) {
     root.traverse((child) => {
       if (child.userData.float) child.position.y = child.userData.baseY + Math.sin(t * 1.4 + child.userData.phase) * 0.22;
       if (child.userData.pulse) child.material.opacity = 0.38 + Math.sin(t * 1.8 + child.userData.phase) * 0.08;
+      if (child.userData.sweep) {
+        child.position.x = -36 + ((t * 9 + child.userData.phase) % 72);
+        child.material.opacity = 0.12 + Math.sin(t * 2.6) * 0.03;
+      }
+      if (child.userData.beacon) child.scale.setScalar(1 + Math.sin(t * 2.8 + child.userData.phase) * 0.08);
       if (child.userData.movePath) {
         const path = child.userData.movePath;
         const idx = Math.floor((t * 0.35 + child.userData.phase) % (path.length - 1));
@@ -894,15 +906,77 @@ function buildTerrainMesh(THREE, elevationAt) {
     const y = elevationAt(x, z);
     pos.setY(i, y);
     const mix = Math.max(0, Math.min(1, (y + 2) / 9));
-    color.setRGB(0.08 + mix * 0.42, 0.29 + mix * 0.34, 0.2 + mix * 0.16);
+    const channel = 0.5 + Math.sin((x + z) * 0.24) * 0.07;
+    color.setRGB(0.05 + mix * 0.33, 0.22 + mix * 0.34 + channel * 0.08, 0.24 + mix * 0.2);
     colors.push(color.r, color.g, color.b);
   }
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.02 }));
+  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.06, emissive: 0x061b25, emissiveIntensity: 0.08 }));
+}
+
+function buildCommandGrid(THREE) {
+  const group = new THREE.Group();
+  const grid = new THREE.GridHelper(88, 22, 0x38c8ff, 0x1b5972);
+  grid.position.y = 0.42;
+  grid.material.transparent = true;
+  grid.material.opacity = 0.2;
+  group.add(grid);
+  const boundaryGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-42, 0.56, -28),
+    new THREE.Vector3(42, 0.56, -28),
+    new THREE.Vector3(42, 0.56, 28),
+    new THREE.Vector3(-42, 0.56, 28),
+    new THREE.Vector3(-42, 0.56, -28)
+  ]);
+  group.add(new THREE.Line(boundaryGeometry, new THREE.LineBasicMaterial({ color: 0x58dbff, transparent: true, opacity: 0.52 })));
+  return group;
+}
+
+function buildRainAndGaugeLayer(THREE, mode, live) {
+  const group = new THREE.Group();
+  const cells = [
+    [-28, -12, 8.8, 0x35d9ff],
+    [-12, 6, mode === "warning" ? 12.5 : 9.6, 0xffd35f],
+    [8, -6, live.bridgeClosed ? 13.8 : 10.4, 0xff8b3d],
+    [25, 11, mode === "plan" ? 7.4 : 9.2, 0x5af0b2]
+  ];
+  for (const [x, z, height, color] of cells) {
+    const mesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.1, 1.1, height, 24, 1, true),
+      new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.22, emissive: color, emissiveIntensity: 0.34, side: THREE.DoubleSide })
+    );
+    mesh.position.set(x, height / 2 + 0.8, z);
+    mesh.userData.float = true;
+    mesh.userData.baseY = mesh.position.y;
+    mesh.userData.phase = x * 0.1 + z * 0.2;
+    group.add(mesh);
+    const cap = new THREE.Mesh(
+      new THREE.RingGeometry(1.15, 1.48, 32),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.72, side: THREE.DoubleSide })
+    );
+    cap.rotation.x = -Math.PI / 2;
+    cap.position.set(x, height + 1.05, z);
+    group.add(cap);
+  }
+  return group;
+}
+
+function buildScanningBeam(THREE, mode) {
+  const group = new THREE.Group();
+  const geometry = new THREE.PlaneGeometry(3.2, 58);
+  const material = new THREE.MeshBasicMaterial({ color: mode === "warning" ? 0xffb252 : 0x38dfff, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false });
+  const beam = new THREE.Mesh(geometry, material);
+  beam.rotation.x = -Math.PI / 2;
+  beam.position.set(-34, 1.08, 0);
+  beam.userData.sweep = true;
+  beam.userData.phase = mode === "simulation" ? 18 : 0;
+  group.add(beam);
+  return group;
 }
 
 function buildPolygonMesh(THREE, points, opacity, elevationAt) {
+  const group = new THREE.Group();
   const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
   const geometry = new THREE.ShapeGeometry(shape);
   geometry.rotateX(Math.PI / 2);
@@ -910,7 +984,14 @@ function buildPolygonMesh(THREE, points, opacity, elevationAt) {
   mesh.position.y = Math.max(...points.map(([x, z]) => elevationAt(x, z))) + 0.34;
   mesh.userData.pulse = true;
   mesh.userData.phase = points.length;
-  return mesh;
+  group.add(mesh);
+  const y = mesh.position.y + 0.06;
+  const outlinePoints = [...points, points[0]].map(([x, z]) => new THREE.Vector3(x, y, z));
+  const outline = new THREE.Line(new THREE.BufferGeometry().setFromPoints(outlinePoints), new THREE.LineBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0.82 }));
+  outline.userData.pulse = true;
+  outline.userData.phase = points.length + 1;
+  group.add(outline);
+  return group;
 }
 
 function buildTube(THREE, points, elevationAt, radius, color, opacity) {
@@ -936,7 +1017,13 @@ function buildPlaceMarker(THREE, place, x, y, z, mode) {
   const height = mode === "plan" && isCare ? 3.9 : isTown ? 3.4 : 2.8;
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, height, 20), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.22, roughness: 0.38 }));
   mesh.position.set(x, y + height / 2 + 0.25, z);
+  mesh.userData.beacon = true;
+  mesh.userData.phase = x * 0.03 + z * 0.05;
   group.add(mesh);
+  const halo = new THREE.Mesh(new THREE.RingGeometry(0.92, 1.22, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.62, side: THREE.DoubleSide }));
+  halo.rotation.x = -Math.PI / 2;
+  halo.position.set(x, y + 0.32, z);
+  group.add(halo);
   group.add(makeLabelSprite(THREE, place.name, x + 1.1, y + height + 1.1, z));
   return group;
 }
@@ -974,20 +1061,25 @@ function buildCompass(THREE) {
 
 function makeLabelSprite(THREE, text, x, y, z) {
   const canvas = document.createElement("canvas");
-  canvas.width = 320;
-  canvas.height = 80;
+  canvas.width = 420;
+  canvas.height = 96;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "rgba(5, 20, 38, 0.78)";
+  ctx.fillStyle = "rgba(4, 18, 36, 0.86)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "rgba(91, 210, 255, 0.78)";
+  ctx.fillStyle = "rgba(39, 210, 255, 0.16)";
+  ctx.fillRect(0, 0, 8, canvas.height);
+  ctx.strokeStyle = "rgba(91, 210, 255, 0.86)";
   ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
   ctx.fillStyle = "#effbff";
-  ctx.font = "700 30px PingFang SC, Microsoft YaHei, sans-serif";
-  ctx.fillText(text, 18, 50);
+  ctx.font = "700 32px PingFang SC, Microsoft YaHei, sans-serif";
+  ctx.fillText(text, 24, 56);
+  ctx.fillStyle = "rgba(164, 218, 244, 0.86)";
+  ctx.font = "500 16px PingFang SC, Microsoft YaHei, sans-serif";
+  ctx.fillText("人员转移监测对象", 24, 78);
   const texture = new THREE.CanvasTexture(canvas);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
   sprite.position.set(x, y, z);
-  sprite.scale.set(7.2, 1.8, 1);
+  sprite.scale.set(8.8, 2.0, 1);
   sprite.userData.float = true;
   sprite.userData.baseY = y;
   sprite.userData.phase = text.length;
@@ -996,6 +1088,7 @@ function makeLabelSprite(THREE, text, x, y, z) {
 
 function commandHud(live, metrics = {}, spatial = {}) {
   const mode = state.mapMode || "hydrology";
+  const modeLabel = mapModes.find(([id]) => id === mode)?.[1] || "水文预报";
   const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
   const harmRisk = Math.round(Number(metrics.vulnerable_harm_risk || 0) * 1000) / 10;
   const closureRate = Math.round(Number(metrics.response_closure_rate || 0) * 1000) / 10;
@@ -1010,10 +1103,29 @@ function commandHud(live, metrics = {}, spatial = {}) {
     ["床位占用", shelterBeds ? Math.min(100, Math.round((live.shelteredTotal / shelterBeds) * 100)) : 0, "%"]
   ];
   const panel = commandModePanel(mode, { live, safeRate, harmRisk, closureRate, queue, routeCount, highRiskRoutes, shelterBeds, gauges });
-  return `<div class="forecast-tabs">
+  const layerItems = [
+    ["三维地形", "on"],
+    ["河道水位", "on"],
+    ["风险淹没", mode === "hydrology" ? "warn" : "on"],
+    ["转移路线", mode === "simulation" || mode === "plan" ? "on" : "standby"],
+    ["避难承载", mode === "plan" ? "on" : "standby"]
+  ];
+  const commandSteps = [
+    ["预警", live.minute >= state.scenarioConfig.warning_minute],
+    ["叫应", live.minute >= state.scenarioConfig.warning_minute + 5],
+    ["转移", live.minute >= state.scenarioConfig.evacuation_order_minute],
+    ["安置", live.shelteredTotal > 0],
+    ["复盘", closureRate >= 80]
+  ];
+  return `<div class="command-watermark"><span>清源县防汛抗旱指挥部</span><b>${modeLabel}</b></div>
+  <div class="forecast-tabs">
     ${mapModes.map(([id, label]) => `<button data-map-mode="${id}" class="${mode === id ? "active" : ""}" type="button">${label}</button>`).join("")}
   </div>
+  <div class="layer-stack" aria-label="专题图层状态">
+    ${layerItems.map(([label, tone]) => `<span class="${tone}"><i></i>${label}</span>`).join("")}
+  </div>
   <aside class="hud-panel hud-left">
+    <p class="hud-eyebrow">实时监测</p>
     <h3>${panel.leftTitle}</h3>
     <div class="hud-kpis">
       ${panel.kpis.map(([value, label]) => `<span><b>${value}</b><small>${label}</small></span>`).join("")}
@@ -1021,6 +1133,7 @@ function commandHud(live, metrics = {}, spatial = {}) {
     ${panel.leftBody}
   </aside>
   <aside class="hud-panel hud-right">
+    <p class="hud-eyebrow">处置链条</p>
     <h3>${panel.rightTitle}</h3>
     <div class="plan-steps">
       ${panel.steps.map(([text, tone = "done"]) => `<span class="${tone}">${text}</span>`).join("")}
@@ -1029,6 +1142,9 @@ function commandHud(live, metrics = {}, spatial = {}) {
       ${panel.readout.map(([value, label]) => `<span><b>${value}</b>${label}</span>`).join("")}
     </div>
   </aside>
+  <div class="dispatch-timeline" aria-label="应急处置进度">
+    ${commandSteps.map(([label, done]) => `<span class="${done ? "done" : ""}"><i></i>${label}</span>`).join("")}
+  </div>
   <div class="hydro-bottom">
     ${panel.bottom.map(([label, value]) => `<span><i style="width:${value}%"></i><b>${label}</b></span>`).join("")}
   </div>`;
