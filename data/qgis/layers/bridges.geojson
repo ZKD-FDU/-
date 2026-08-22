@@ -13,30 +13,22 @@
       "properties": {
         "id": "bridge_east",
         "name": "东桥",
-        "risk_score": 0.8
+        "risk_score": 0.8,
+        "closure_threshold": 0.62,
+        "bridge_type": "main_river_bridge"
       },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.372,
-          31.272
-        ]
-      }
+      "geometry": { "type": "Point", "coordinates": [121.382, 31.269] }
     },
     {
       "type": "Feature",
       "properties": {
         "id": "bridge_south",
         "name": "南涵洞",
-        "risk_score": 0.45
+        "risk_score": 0.68,
+        "closure_threshold": 0.58,
+        "bridge_type": "tributary_culvert"
       },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.416,
-          31.214
-        ]
-      }
+      "geometry": { "type": "Point", "coordinates": [121.409, 31.218] }
     }
   ]
 }

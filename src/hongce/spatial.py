@@ -45,6 +45,7 @@ def summarize_spatial_package(data: dict[str, Any]) -> dict[str, Any]:
     routes = data.get("routes", [])
     shelters = data.get("shelters", [])
     places = data.get("places", [])
+    rivers = data.get("rivers", [])
     coverage = data.get("coverage", {})
     route_minutes = [float(route.get("travel_minutes", 0)) for route in routes if route.get("travel_minutes") is not None]
     route_distances = [
@@ -67,6 +68,7 @@ def summarize_spatial_package(data: dict[str, Any]) -> dict[str, Any]:
         "place_count": len(places),
         "route_count": len(routes),
         "shelter_count": len(shelters),
+        "river_count": len(rivers),
         "total_shelter_capacity": sum_int(shelter.get("capacity") for shelter in shelters),
         "total_shelter_care_capacity": care_capacity,
         "mean_route_minutes": round(mean(route_minutes), 2) if route_minutes else 0,
@@ -154,8 +156,10 @@ def estimate_spatial_quality(data: dict[str, Any]) -> float:
         score += 0.15
     if data.get("bridges"):
         score += 0.10
+    if data.get("rivers"):
+        score += 0.08
     if any(route.get("risk_exposure_minutes") is not None for route in routes):
-        score += 0.10
+        score += 0.08
     return round(clamp_float(score, 0.0, 1.0), 3)
 
 

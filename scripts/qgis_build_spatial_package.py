@@ -9,7 +9,8 @@ Run with QGIS Python, for example:
       --shelters shelters \
       --risk-zones risk_zones \
       --roads roads \
-      --bridges bridges
+      --bridges bridges \
+      --rivers rivers
 
 Expected fields:
 - places: id/name/population/vulnerable_population
@@ -17,6 +18,7 @@ Expected fields:
 - risk_zones: risk_score or level, optional hazard_type/depth_m/velocity_mps
 - bridges: id/name/risk_score, optional closure_threshold
 - roads: optional speed_kmh/road_class/oneway
+- rivers: optional id/name/kind/flow_direction
 """
 
 from __future__ import annotations
@@ -70,6 +72,7 @@ def main() -> int:
     risk_layer = require_layer(project, args.risk_zones)
     roads_layer = find_layer(project, args.roads)
     bridges_layer = find_layer(project, args.bridges)
+    rivers_layer = find_layer(project, args.rivers)
 
     distance = QgsDistanceArea()
     distance.setSourceCrs(places_layer.crs(), project.transformContext())
@@ -78,6 +81,7 @@ def main() -> int:
     risk_zones = collect_risk_zones(risk_layer)
     shelters = collect_shelters(shelters_layer)
     bridges = collect_bridges(bridges_layer) if bridges_layer else []
+    rivers = collect_rivers(rivers_layer) if rivers_layer else []
     places = collect_places(places_layer, risk_zones)
     routes = build_routes(places_layer, shelters_layer, roads_layer, risk_zones, bridges, distance)
     coverage = build_coverage(places, routes, shelters, args.coverage_minutes)
@@ -96,6 +100,7 @@ def main() -> int:
         },
         "places": places,
         "shelters": shelters,
+        "rivers": rivers,
         "risk_zones": strip_private_geometry(risk_zones),
         "bridges": strip_private_geometry(bridges),
         "routes": routes,
@@ -129,6 +134,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--risk-zones", default="risk_zones")
     parser.add_argument("--roads", default="roads")
     parser.add_argument("--bridges", default="bridges")
+    parser.add_argument("--rivers", default="rivers")
     parser.add_argument("--coverage-minutes", type=float, default=60)
     parser.add_argument("--timestep-minutes", type=int, default=5)
     parser.add_argument("--vehicles", type=int, default=0)
@@ -228,6 +234,22 @@ def collect_bridges(layer) -> list[dict[str, Any]]:
             }
         )
     return bridges
+
+
+def collect_rivers(layer) -> list[dict[str, Any]]:
+    rivers = []
+    for feature in layer.getFeatures():
+        rivers.append(
+            {
+                "id": field(feature, "id", f"river-{feature.id()}"),
+                "name": field(feature, "name", f"river-{feature.id()}"),
+                "kind": field(feature, "kind", "river"),
+                "flow_direction": field(feature, "flow_direction", "upstream_to_downstream"),
+                "risk_score": float_field(feature, "risk_score", 0.5),
+                "coordinates": line_coordinates(feature.geometry()),
+            }
+        )
+    return rivers
 
 
 def build_routes(places_layer, shelters_layer, roads_layer, risk_zones, bridges, distance) -> list[dict[str, Any]]:

@@ -482,9 +482,15 @@ section {
 .river {
   fill: none;
   stroke: rgba(56, 123, 151, 0.58);
-  stroke-width: 20;
+  stroke-width: 18;
   stroke-linecap: round;
+  stroke-linejoin: round;
   filter: url("#terrainShadow");
+}
+
+.river.tributary {
+  stroke-width: 10;
+  stroke: rgba(66, 140, 163, 0.52);
 }
 
 .risk-zone {

@@ -3,9 +3,10 @@
   "package_id": "qgis-qingyuan",
   "source_project": "data/qgis/hongce.qgz",
   "method": {
-    "route_engine": "geojson_straight_line",
+    "route_engine": "geojson_polyline_route",
     "coverage_minutes": 60,
-    "risk_overlay": "centroid/line bbox intersects risk zone bbox"
+    "risk_overlay": "point-in-polygon and route bbox/risk-zone intersection",
+    "hydrology": "river and tributary lines are exported as spatial features with upstream-to-downstream coordinates"
   },
   "places": [
     {
@@ -13,27 +14,39 @@
       "name": "北谷村",
       "population": 220,
       "vulnerable_population": 90,
-      "risk_score": 0.82,
-      "x": 121.318,
-      "y": 31.305
+      "risk_score": 0.0,
+      "elevation_m": 48.0,
+      "river_distance_m": 920.0,
+      "hazard_exposure": 0.32,
+      "administrative_level": "village",
+      "x": 121.316,
+      "y": 31.318
     },
     {
       "id": "qingyuan_town",
       "name": "清源镇",
       "population": 530,
       "vulnerable_population": 110,
-      "risk_score": 0.82,
-      "x": 121.392,
-      "y": 31.258
+      "risk_score": 0.0,
+      "elevation_m": 30.0,
+      "river_distance_m": 620.0,
+      "hazard_exposure": 0.46,
+      "administrative_level": "town",
+      "x": 121.388,
+      "y": 31.276
     },
     {
       "id": "south_valley",
       "name": "南谷村",
       "population": 180,
       "vulnerable_population": 70,
-      "risk_score": 0.82,
-      "x": 121.428,
-      "y": 31.205
+      "risk_score": 0.0,
+      "elevation_m": 36.0,
+      "river_distance_m": 520.0,
+      "hazard_exposure": 0.52,
+      "administrative_level": "village",
+      "x": 121.392,
+      "y": 31.206
     },
     {
       "id": "nursing_home",
@@ -41,8 +54,12 @@
       "population": 69,
       "vulnerable_population": 55,
       "risk_score": 0.82,
-      "x": 121.346,
-      "y": 31.282
+      "elevation_m": 24.0,
+      "river_distance_m": 280.0,
+      "hazard_exposure": 0.74,
+      "administrative_level": "institution",
+      "x": 121.35,
+      "y": 31.292
     }
   ],
   "shelters": [
@@ -50,22 +67,315 @@
       "id": "school_shelter",
       "name": "第二中学避难点",
       "capacity": 620,
-      "x": 121.46,
-      "y": 31.248
+      "service_radius_minutes": 60.0,
+      "care_capacity": 80,
+      "backup_power": true,
+      "medical_support": true,
+      "x": 121.456,
+      "y": 31.266
     },
     {
       "id": "gym_shelter",
       "name": "县体育馆避难点",
       "capacity": 180,
-      "x": 121.405,
-      "y": 31.225
+      "service_radius_minutes": 45.0,
+      "care_capacity": 28,
+      "backup_power": true,
+      "medical_support": false,
+      "x": 121.432,
+      "y": 31.236
+    }
+  ],
+  "rivers": [
+    {
+      "id": "main_river",
+      "name": "清源河主槽",
+      "kind": "main_channel",
+      "flow_direction": "NW-SE",
+      "risk_score": 0.82,
+      "coordinates": [
+        [
+          121.305,
+          31.318
+        ],
+        [
+          121.33,
+          31.3
+        ],
+        [
+          121.356,
+          31.285
+        ],
+        [
+          121.383,
+          31.268
+        ],
+        [
+          121.41,
+          31.245
+        ],
+        [
+          121.438,
+          31.222
+        ],
+        [
+          121.468,
+          31.205
+        ]
+      ]
+    },
+    {
+      "id": "south_tributary",
+      "name": "南支沟",
+      "kind": "tributary_culvert",
+      "flow_direction": "S-N",
+      "risk_score": 0.68,
+      "coordinates": [
+        [
+          121.385,
+          31.201
+        ],
+        [
+          121.397,
+          31.209
+        ],
+        [
+          121.409,
+          31.218
+        ],
+        [
+          121.421,
+          31.229
+        ],
+        [
+          121.432,
+          31.236
+        ],
+        [
+          121.41,
+          31.245
+        ]
+      ]
     }
   ],
   "risk_zones": [
     {
       "id": "floodplain_01",
-      "name": "河湾漫溢区",
-      "risk_score": 0.82
+      "name": "主河道漫溢区",
+      "hazard_type": "river_floodplain",
+      "risk_score": 0.82,
+      "depth_m": 1.4,
+      "velocity_mps": 1.1,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.3,
+              31.326
+            ],
+            [
+              121.329,
+              31.306
+            ],
+            [
+              121.358,
+              31.291
+            ],
+            [
+              121.39,
+              31.274
+            ],
+            [
+              121.42,
+              31.25
+            ],
+            [
+              121.472,
+              31.211
+            ],
+            [
+              121.464,
+              31.199
+            ],
+            [
+              121.433,
+              31.219
+            ],
+            [
+              121.402,
+              31.241
+            ],
+            [
+              121.377,
+              31.26
+            ],
+            [
+              121.346,
+              31.275
+            ],
+            [
+              121.318,
+              31.295
+            ],
+            [
+              121.298,
+              31.313
+            ],
+            [
+              121.3,
+              31.326
+            ]
+          ]
+        ]
+      },
+      "polygon": [
+        [
+          121.3,
+          31.326
+        ],
+        [
+          121.329,
+          31.306
+        ],
+        [
+          121.358,
+          31.291
+        ],
+        [
+          121.39,
+          31.274
+        ],
+        [
+          121.42,
+          31.25
+        ],
+        [
+          121.472,
+          31.211
+        ],
+        [
+          121.464,
+          31.199
+        ],
+        [
+          121.433,
+          31.219
+        ],
+        [
+          121.402,
+          31.241
+        ],
+        [
+          121.377,
+          31.26
+        ],
+        [
+          121.346,
+          31.275
+        ],
+        [
+          121.318,
+          31.295
+        ],
+        [
+          121.298,
+          31.313
+        ],
+        [
+          121.3,
+          31.326
+        ]
+      ]
+    },
+    {
+      "id": "tributary_ponding_01",
+      "name": "南支沟倒灌积水区",
+      "hazard_type": "tributary_backwater",
+      "risk_score": 0.68,
+      "depth_m": 0.8,
+      "velocity_mps": 0.55,
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.384,
+              31.202
+            ],
+            [
+              121.403,
+              31.213
+            ],
+            [
+              121.421,
+              31.229
+            ],
+            [
+              121.433,
+              31.236
+            ],
+            [
+              121.426,
+              31.244
+            ],
+            [
+              121.408,
+              31.229
+            ],
+            [
+              121.393,
+              31.215
+            ],
+            [
+              121.379,
+              31.207
+            ],
+            [
+              121.384,
+              31.202
+            ]
+          ]
+        ]
+      },
+      "polygon": [
+        [
+          121.384,
+          31.202
+        ],
+        [
+          121.403,
+          31.213
+        ],
+        [
+          121.421,
+          31.229
+        ],
+        [
+          121.433,
+          31.236
+        ],
+        [
+          121.426,
+          31.244
+        ],
+        [
+          121.408,
+          31.229
+        ],
+        [
+          121.393,
+          31.215
+        ],
+        [
+          121.379,
+          31.207
+        ],
+        [
+          121.384,
+          31.202
+        ]
+      ]
     }
   ],
   "bridges": [
@@ -73,61 +383,170 @@
       "id": "bridge_east",
       "name": "东桥",
       "risk_score": 0.8,
-      "x": 121.372,
-      "y": 31.272
+      "closure_threshold": 0.62,
+      "bridge_type": "main_river_bridge",
+      "x": 121.382,
+      "y": 31.269
     },
     {
       "id": "bridge_south",
       "name": "南涵洞",
-      "risk_score": 0.45,
-      "x": 121.416,
-      "y": 31.214
+      "risk_score": 0.68,
+      "closure_threshold": 0.58,
+      "bridge_type": "tributary_culvert",
+      "x": 121.409,
+      "y": 31.218
     }
   ],
   "routes": [
     {
-      "id": "route-north_valley-gym_shelter",
+      "id": "route-north_valley-school_shelter",
       "origin_id": "north_valley",
-      "shelter_id": "gym_shelter",
-      "distance_meters": 12145.3,
-      "travel_minutes": 29.1,
+      "shelter_id": "school_shelter",
+      "distance_meters": 15390.9,
+      "route_distance_m": 15390.9,
+      "travel_minutes": 36.9,
+      "risk_exposure_minutes": 30.3,
       "risk_score": 0.82,
       "bridge_exposure_score": 0.8,
+      "bridge_dependency": [
+        "bridge_east"
+      ],
+      "risk_zone_dependency": [
+        "floodplain_01"
+      ],
       "crosses_high_risk": true,
-      "route_engine": "geojson_straight_line"
+      "route_engine": "geojson_polyline_route",
+      "coordinates": [
+        [
+          121.316,
+          31.318
+        ],
+        [
+          121.338,
+          31.302
+        ],
+        [
+          121.348,
+          31.294
+        ],
+        [
+          121.382,
+          31.269
+        ],
+        [
+          121.421,
+          31.264
+        ],
+        [
+          121.456,
+          31.266
+        ]
+      ]
     },
     {
-      "id": "route-qingyuan_town-gym_shelter",
+      "id": "route-qingyuan_town-school_shelter",
       "origin_id": "qingyuan_town",
-      "shelter_id": "gym_shelter",
-      "distance_meters": 3872.0,
-      "travel_minutes": 9.3,
-      "risk_score": 0.82,
+      "shelter_id": "school_shelter",
+      "distance_meters": 6560.4,
+      "route_distance_m": 6560.4,
+      "travel_minutes": 15.7,
+      "risk_exposure_minutes": 0.0,
+      "risk_score": 0.0,
       "bridge_exposure_score": 0.0,
-      "crosses_high_risk": true,
-      "route_engine": "geojson_straight_line"
+      "bridge_dependency": [],
+      "risk_zone_dependency": [],
+      "crosses_high_risk": false,
+      "route_engine": "geojson_polyline_route",
+      "coordinates": [
+        [
+          121.388,
+          31.276
+        ],
+        [
+          121.421,
+          31.272
+        ],
+        [
+          121.456,
+          31.266
+        ]
+      ]
     },
     {
       "id": "route-south_valley-gym_shelter",
       "origin_id": "south_valley",
       "shelter_id": "gym_shelter",
-      "distance_meters": 3119.2,
-      "travel_minutes": 7.5,
+      "distance_meters": 5062.5,
+      "route_distance_m": 5062.5,
+      "travel_minutes": 12.2,
+      "risk_exposure_minutes": 10.0,
       "risk_score": 0.82,
-      "bridge_exposure_score": 0.45,
+      "bridge_exposure_score": 0.68,
+      "bridge_dependency": [
+        "bridge_south"
+      ],
+      "risk_zone_dependency": [
+        "floodplain_01",
+        "tributary_ponding_01"
+      ],
       "crosses_high_risk": true,
-      "route_engine": "geojson_straight_line"
+      "route_engine": "geojson_polyline_route",
+      "coordinates": [
+        [
+          121.392,
+          31.206
+        ],
+        [
+          121.409,
+          31.218
+        ],
+        [
+          121.421,
+          31.228
+        ],
+        [
+          121.432,
+          31.236
+        ]
+      ]
     },
     {
-      "id": "route-nursing_home-gym_shelter",
+      "id": "route-nursing_home-school_shelter",
       "origin_id": "nursing_home",
-      "shelter_id": "gym_shelter",
-      "distance_meters": 8463.2,
-      "travel_minutes": 20.3,
+      "shelter_id": "school_shelter",
+      "distance_meters": 11055.7,
+      "route_distance_m": 11055.7,
+      "travel_minutes": 26.5,
+      "risk_exposure_minutes": 21.8,
       "risk_score": 0.82,
       "bridge_exposure_score": 0.8,
+      "bridge_dependency": [
+        "bridge_east"
+      ],
+      "risk_zone_dependency": [
+        "floodplain_01"
+      ],
       "crosses_high_risk": true,
-      "route_engine": "geojson_straight_line"
+      "route_engine": "geojson_polyline_route",
+      "coordinates": [
+        [
+          121.35,
+          31.292
+        ],
+        [
+          121.382,
+          31.269
+        ],
+        [
+          121.421,
+          31.264
+        ],
+        [
+          121.456,
+          31.266
+        ]
+      ]
     }
   ],
   "coverage": {
@@ -135,12 +554,13 @@
     "covered_place_count": 4,
     "uncovered_place_count": 0,
     "coverage_rate": 1.0,
-    "total_shelter_capacity": 800
+    "total_shelter_capacity": 800,
+    "total_care_capacity": 108
   },
   "resources": {
     "timestep_minutes": 5,
-    "vehicles": 0,
-    "care_workers": 0,
-    "stretchers": 0
+    "vehicles": 18,
+    "care_workers": 34,
+    "stretchers": 18
   }
 }

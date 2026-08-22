@@ -18,30 +18,36 @@ const fallbackSpatialMap = {
   label: "SYNTHETIC_SPATIAL",
   method: {
     route_engine: "frontend_fallback",
-    risk_overlay: "embedded coordinates"
+    risk_overlay: "embedded coordinates",
+    hydrology: "main river and tributary exported as upstream-to-downstream polylines"
   },
   places: [
-    { id: "north_valley", name: "北谷村", type: "village", population: 220, vulnerable_population: 90, risk_score: 0.82, x: 121.318, y: 31.305 },
-    { id: "qingyuan_town", name: "清源镇", type: "town", population: 530, vulnerable_population: 110, risk_score: 0.82, x: 121.392, y: 31.258 },
-    { id: "south_valley", name: "南谷村", type: "village", population: 180, vulnerable_population: 70, risk_score: 0.82, x: 121.428, y: 31.205 },
-    { id: "nursing_home", name: "青松养老照料中心", type: "care", population: 69, vulnerable_population: 55, risk_score: 0.82, x: 121.346, y: 31.282 }
+    { id: "north_valley", name: "北谷村", type: "village", population: 220, vulnerable_population: 90, risk_score: 0.32, elevation_m: 48, river_distance_m: 920, x: 121.316, y: 31.318 },
+    { id: "qingyuan_town", name: "清源镇", type: "town", population: 530, vulnerable_population: 110, risk_score: 0.46, elevation_m: 30, river_distance_m: 620, x: 121.388, y: 31.276 },
+    { id: "south_valley", name: "南谷村", type: "village", population: 180, vulnerable_population: 70, risk_score: 0.52, elevation_m: 36, river_distance_m: 520, x: 121.392, y: 31.206 },
+    { id: "nursing_home", name: "青松养老照料中心", type: "care", population: 69, vulnerable_population: 55, risk_score: 0.74, elevation_m: 24, river_distance_m: 280, x: 121.35, y: 31.292 }
   ],
   shelters: [
-    { id: "school_shelter", name: "第二中学避难点", capacity: 620, x: 121.46, y: 31.248 },
-    { id: "gym_shelter", name: "县体育馆避难点", capacity: 180, x: 121.405, y: 31.225 }
+    { id: "school_shelter", name: "第二中学避难点", capacity: 620, care_capacity: 80, x: 121.456, y: 31.266 },
+    { id: "gym_shelter", name: "县体育馆避难点", capacity: 180, care_capacity: 28, x: 121.432, y: 31.236 }
+  ],
+  rivers: [
+    { id: "main_river", name: "清源河主槽", kind: "main_channel", flow_direction: "NW-SE", risk_score: 0.82, coordinates: [[121.305, 31.318], [121.33, 31.3], [121.356, 31.285], [121.383, 31.268], [121.41, 31.245], [121.438, 31.222], [121.468, 31.205]] },
+    { id: "south_tributary", name: "南支沟", kind: "tributary_culvert", flow_direction: "S-N", risk_score: 0.68, coordinates: [[121.385, 31.201], [121.397, 31.209], [121.409, 31.218], [121.421, 31.229], [121.432, 31.236], [121.41, 31.245]] }
   ],
   bridges: [
-    { id: "bridge_east", name: "东桥", risk_score: 0.8, x: 121.372, y: 31.272 },
-    { id: "bridge_south", name: "南涵洞", risk_score: 0.45, x: 121.416, y: 31.214 }
+    { id: "bridge_east", name: "东桥", risk_score: 0.8, bridge_type: "main_river_bridge", x: 121.382, y: 31.269 },
+    { id: "bridge_south", name: "南涵洞", risk_score: 0.68, bridge_type: "tributary_culvert", x: 121.409, y: 31.218 }
   ],
   risk_zones: [
-    { id: "floodplain_01", name: "河湾漫溢区", risk_score: 0.82, geometry: { type: "Polygon", coordinates: [[[121.3, 31.32], [121.47, 31.29], [121.45, 31.22], [121.33, 31.2], [121.3, 31.32]]] } }
+    { id: "floodplain_01", name: "主河道漫溢区", risk_score: 0.82, geometry: { type: "Polygon", coordinates: [[[121.3, 31.326], [121.329, 31.306], [121.358, 31.291], [121.39, 31.274], [121.42, 31.25], [121.472, 31.211], [121.464, 31.199], [121.433, 31.219], [121.402, 31.241], [121.377, 31.26], [121.346, 31.275], [121.318, 31.295], [121.298, 31.313], [121.3, 31.326]]] } },
+    { id: "tributary_ponding_01", name: "南支沟倒灌积水区", risk_score: 0.68, geometry: { type: "Polygon", coordinates: [[[121.384, 31.202], [121.403, 31.213], [121.421, 31.229], [121.433, 31.236], [121.426, 31.244], [121.408, 31.229], [121.393, 31.215], [121.379, 31.207], [121.384, 31.202]]] } }
   ],
   routes: [
-    { id: "route-north_valley-gym_shelter", origin_id: "north_valley", shelter_id: "gym_shelter", travel_minutes: 29.1, risk_score: 0.82, bridge_exposure_score: 0.8, crosses_high_risk: true },
-    { id: "route-qingyuan_town-gym_shelter", origin_id: "qingyuan_town", shelter_id: "gym_shelter", travel_minutes: 9.3, risk_score: 0.82, bridge_exposure_score: 0, crosses_high_risk: true },
-    { id: "route-south_valley-gym_shelter", origin_id: "south_valley", shelter_id: "gym_shelter", travel_minutes: 7.5, risk_score: 0.82, bridge_exposure_score: 0.45, crosses_high_risk: true },
-    { id: "route-nursing_home-gym_shelter", origin_id: "nursing_home", shelter_id: "gym_shelter", travel_minutes: 20.3, risk_score: 0.82, bridge_exposure_score: 0.8, crosses_high_risk: true }
+    { id: "route-north_valley-school_shelter", origin_id: "north_valley", shelter_id: "school_shelter", travel_minutes: 34.2, risk_score: 0.82, bridge_exposure_score: 0.8, bridge_dependency: ["bridge_east"], crosses_high_risk: true, coordinates: [[121.316, 31.318], [121.338, 31.302], [121.348, 31.294], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] },
+    { id: "route-qingyuan_town-school_shelter", origin_id: "qingyuan_town", shelter_id: "school_shelter", travel_minutes: 18.4, risk_score: 0.46, bridge_exposure_score: 0, bridge_dependency: [], crosses_high_risk: false, coordinates: [[121.388, 31.276], [121.421, 31.272], [121.456, 31.266]] },
+    { id: "route-south_valley-gym_shelter", origin_id: "south_valley", shelter_id: "gym_shelter", travel_minutes: 13.1, risk_score: 0.68, bridge_exposure_score: 0.68, bridge_dependency: ["bridge_south"], crosses_high_risk: true, coordinates: [[121.392, 31.206], [121.409, 31.218], [121.421, 31.228], [121.432, 31.236]] },
+    { id: "route-nursing_home-school_shelter", origin_id: "nursing_home", shelter_id: "school_shelter", travel_minutes: 26.2, risk_score: 0.82, bridge_exposure_score: 0.8, bridge_dependency: ["bridge_east"], crosses_high_risk: true, coordinates: [[121.35, 31.292], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] }
   ],
   coverage: { coverage_minutes: 60, covered_place_count: 4, uncovered_place_count: 0, coverage_rate: 1, total_shelter_capacity: 800 }
 };
@@ -608,6 +614,12 @@ function terrainMap(metrics = {}) {
     const label = `${route.name || route.id} · ${route.travel_minutes || 0} 分钟 · ${routeLive.label}`;
     return `<path class="${classes.join(" ")}" d="${path(route.coordinates)}"><title>${escapeHtml(label)}</title></path>`;
   }).join("");
+  const riverPaths = spatial.rivers.map((river) => {
+    const classes = ["river"];
+    if (river.kind === "tributary_culvert") classes.push("tributary");
+    const label = `${river.name || river.id} · 流向 ${river.flow_direction || "上游至下游"}`;
+    return `<path class="${classes.join(" ")}" d="${path(river.coordinates)}" marker-end="url(#flowArrow)"><title>${escapeHtml(label)}</title></path>`;
+  }).join("");
   const riskZones = spatial.risk_zones.map((zone) => `<path class="risk-zone risk-${riskLevel(zone.risk_score)}" d="${closedPath(zone.polygon)}"><title>${escapeHtml(zone.name)} · 风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%</title></path>`).join("");
   const contours = terrainContours();
   const villages = spatial.places.map((place) => {
@@ -667,11 +679,14 @@ function terrainMap(metrics = {}) {
         <filter id="terrainShadow" x="-20%" y="-20%" width="140%" height="140%">
           <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#31413c" flood-opacity="0.22" />
         </filter>
+        <marker id="flowArrow" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 Z" fill="#2d7890"></path>
+        </marker>
       </defs>
       <rect class="terrain-bg" x="0" y="0" width="1000" height="620"></rect>
       <path class="terrain-hillshade hill-a" d="M20 500 C150 390 205 225 360 210 C520 194 600 100 780 68 C900 48 980 90 1010 130 L1010 620 L20 620 Z"></path>
       <path class="terrain-hillshade hill-b" d="M-40 210 C120 260 238 120 405 142 C548 160 660 260 806 235 C918 216 965 168 1035 198 L1035 -20 L-40 -20 Z"></path>
-      <path class="river" d="M-20 136 C122 173 200 239 326 250 C458 262 565 342 690 372 C812 403 902 480 1025 510"></path>
+      ${riverPaths}
       ${contours}
       ${riskZones}
       ${roadPaths}
@@ -712,6 +727,7 @@ function normalizedSpatialMapFrom(source) {
     ...place
   }));
   const shelters = source.shelters || fallbackSpatialMap.shelters;
+  const rivers = (source.rivers || fallbackSpatialMap.rivers).map((river) => ({ ...river, coordinates: river.coordinates || [] })).filter((river) => river.coordinates.length >= 2);
   const placeById = Object.fromEntries(places.map((place) => [place.id, place]));
   const shelterById = Object.fromEntries(shelters.map((shelter) => [shelter.id, shelter]));
   const risk_zones = (source.risk_zones || fallbackSpatialMap.risk_zones).map((zone) => {
@@ -727,7 +743,7 @@ function normalizedSpatialMapFrom(source) {
     const coordinates = route.coordinates || fallback.coordinates || (origin && shelter ? [[origin.x, origin.y], [shelter.x, shelter.y]] : []);
     return { ...fallback, ...route, coordinates, name: route.name || `${origin?.name || route.origin_id}-${shelter?.name || route.shelter_id}` };
   }).filter((route) => route.coordinates?.length >= 2);
-  return { ...fallbackSpatialMap, ...source, places, shelters, risk_zones, routes };
+  return { ...fallbackSpatialMap, ...source, places, shelters, rivers, risk_zones, routes };
 }
 
 function liveSpatialState(spatial) {
@@ -789,6 +805,7 @@ function mapBounds(spatial) {
     ...spatial.places.map((item) => [item.x, item.y]),
     ...spatial.shelters.map((item) => [item.x, item.y]),
     ...spatial.bridges.map((item) => [item.x, item.y]),
+    ...spatial.rivers.flatMap((item) => item.coordinates),
     ...spatial.risk_zones.flatMap((item) => item.polygon),
     ...spatial.routes.flatMap((item) => item.coordinates)
   ];

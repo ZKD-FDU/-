@@ -1,0 +1,55 @@
+{
+  "type": "FeatureCollection",
+  "name": "rivers",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:EPSG::4326"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "main_river",
+        "name": "清源河主槽",
+        "kind": "main_channel",
+        "flow_direction": "NW-SE",
+        "risk_score": 0.82
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [121.305, 31.318],
+          [121.33, 31.3],
+          [121.356, 31.285],
+          [121.383, 31.268],
+          [121.41, 31.245],
+          [121.438, 31.222],
+          [121.468, 31.205]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "south_tributary",
+        "name": "南支沟",
+        "kind": "tributary_culvert",
+        "flow_direction": "S-N",
+        "risk_score": 0.68
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [121.385, 31.201],
+          [121.397, 31.209],
+          [121.409, 31.218],
+          [121.421, 31.229],
+          [121.432, 31.236],
+          [121.41, 31.245]
+        ]
+      }
+    }
+  ]
+}

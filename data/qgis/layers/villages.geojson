@@ -14,15 +14,13 @@
         "id": "north_valley",
         "name": "北谷村",
         "population": 220,
-        "vulnerable_population": 90
+        "vulnerable_population": 90,
+        "elevation_m": 48,
+        "river_distance_m": 920,
+        "hazard_exposure": 0.32,
+        "administrative_level": "village"
       },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.318,
-          31.305
-        ]
-      }
+      "geometry": { "type": "Point", "coordinates": [121.316, 31.318] }
     },
     {
       "type": "Feature",
@@ -30,15 +28,13 @@
         "id": "qingyuan_town",
         "name": "清源镇",
         "population": 530,
-        "vulnerable_population": 110
+        "vulnerable_population": 110,
+        "elevation_m": 30,
+        "river_distance_m": 620,
+        "hazard_exposure": 0.46,
+        "administrative_level": "town"
       },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.392,
-          31.258
-        ]
-      }
+      "geometry": { "type": "Point", "coordinates": [121.388, 31.276] }
     },
     {
       "type": "Feature",
@@ -46,15 +42,13 @@
         "id": "south_valley",
         "name": "南谷村",
         "population": 180,
-        "vulnerable_population": 70
+        "vulnerable_population": 70,
+        "elevation_m": 36,
+        "river_distance_m": 520,
+        "hazard_exposure": 0.52,
+        "administrative_level": "village"
       },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.428,
-          31.205
-        ]
-      }
+      "geometry": { "type": "Point", "coordinates": [121.392, 31.206] }
     },
     {
       "type": "Feature",
@@ -62,15 +56,13 @@
         "id": "nursing_home",
         "name": "青松养老照料中心",
         "population": 69,
-        "vulnerable_population": 55
+        "vulnerable_population": 55,
+        "elevation_m": 24,
+        "river_distance_m": 280,
+        "hazard_exposure": 0.74,
+        "administrative_level": "institution"
       },
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          121.346,
-          31.282
-        ]
-      }
+      "geometry": { "type": "Point", "coordinates": [121.35, 31.292] }
     }
   ]
 }

@@ -100,10 +100,10 @@ are bulky and not required for classmates to run the app.
 ## QGIS/PyQGIS Spatial Link
 
 HongCe can consume a QGIS-generated `spatial_package.json` with villages,
-shelters, risk zones, bridges, routes, and coverage metrics. Generate it with
+shelters, rivers/tributaries, risk zones, bridges/culverts, routes, and coverage metrics. Generate it with
 `scripts/qgis_build_spatial_package.py` inside QGIS Python, then pass
 `spatial_package_path` to `/spatial/derive-scenario` or `/simulations/run`.
-See `docs/qgis_pyqgis_integration.md`.
+See `docs/qgis_pyqgis_integration.md` and `docs/qgis_spatial_data_standard.md`.
 
 ## Key Files
 

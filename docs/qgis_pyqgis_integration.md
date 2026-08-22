@@ -11,6 +11,7 @@ QGIS 工程建议包含这些图层：
 | `villages` | 点/面 | `id`, `name`, `population`, `vulnerable_population` | 村居、街镇、机构或人员聚集点 |
 | `shelters` | 点/面 | `id`, `name`, `capacity` | 避难点容量与覆盖 |
 | `risk_zones` | 面 | `id`, `name`, `risk_score` 或 `level` | 洪涝、山洪、滑坡、积水等风险区 |
+| `rivers` | 线 | `id`, `name`，可选 `kind`, `flow_direction` | 河道、支沟、涵洞水流方向 |
 | `roads` | 线 | 可选 | 后续替换为真实道路网络最短路径 |
 | `bridges` | 点/线 | `id`, `name`, `risk_score` | 桥梁、涵洞、道路断点暴露 |
 
@@ -28,7 +29,8 @@ QGIS 工程建议包含这些图层：
   --shelters shelters \
   --risk-zones risk_zones \
   --roads roads \
-  --bridges bridges
+  --bridges bridges \
+  --rivers rivers
 ```
 
 输出：
@@ -37,7 +39,7 @@ QGIS 工程建议包含这些图层：
 data/spatial/qingyuan/spatial_package.json
 ```
 
-当前脚本会为每个地点匹配最近避难点，计算路线距离、预计转移分钟、是否穿越高风险区、桥梁暴露分数和避难点覆盖率。后续如果道路网字段完备，可以在同一脚本里把路线计算替换为 QGIS `native:shortestpathpointtopoint` 或网络分析模块。
+当前脚本会为每个地点匹配最近避难点，计算路线距离、预计转移分钟、是否穿越高风险区、桥梁/涵洞暴露分数、河流流向和避难点覆盖率。涵洞应放在支沟/河道与道路交汇处；村庄应位于河谷台地、山脚缓坡或镇区建设用地，不应任意放在风险面中央。后续如果道路网字段完备，可以在同一脚本里把路线计算替换为 QGIS `native:shortestpathpointtopoint` 或网络分析模块。
 
 ## 接入洪策 API
 

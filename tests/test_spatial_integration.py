@@ -70,6 +70,27 @@ class SpatialIntegrationTest(unittest.TestCase):
             self.assertEqual(response["spatial_context"]["package_id"], "test-qgis-package")
             self.assertGreaterEqual(response["metrics"]["safe_before_danger_rate"], 0)
 
+    def test_qingyuan_sample_has_plausible_hydrology_topology(self) -> None:
+        package = json.loads(Path("data/spatial/qingyuan/spatial_package.json").read_text(encoding="utf-8"))
+        rivers = {river["id"]: river for river in package.get("rivers", [])}
+        self.assertIn("main_river", rivers)
+        self.assertIn("south_tributary", rivers)
+        self.assertEqual(rivers["main_river"]["coordinates"][0], [121.305, 31.318])
+        self.assertEqual(rivers["main_river"]["coordinates"][-1], [121.468, 31.205])
+
+        bridges = {bridge["id"]: bridge for bridge in package["bridges"]}
+        south_culvert = bridges["bridge_south"]
+        self.assertEqual(south_culvert["bridge_type"], "tributary_culvert")
+        self.assertIn([south_culvert["x"], south_culvert["y"]], rivers["south_tributary"]["coordinates"])
+
+        risks = {place["id"]: place["risk_score"] for place in package["places"]}
+        self.assertGreater(risks["nursing_home"], risks["qingyuan_town"])
+        self.assertGreaterEqual(len(set(risks.values())), 2)
+
+        routes = {route["origin_id"]: route for route in package["routes"]}
+        self.assertIn("bridge_south", routes["south_valley"]["bridge_dependency"])
+        self.assertIn("bridge_east", routes["north_valley"]["bridge_dependency"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,6 +9,7 @@
 | `villages` | 点或面 | `id`, `name`, `population`, `vulnerable_population` | `elevation_m`, `river_distance_m`, `hazard_exposure`, `administrative_level` |
 | `shelters` | 点或面 | `id`, `name`, `capacity` | `service_radius_minutes`, `care_capacity`, `backup_power`, `medical_support` |
 | `risk_zones` | 面 | `id`, `name`, `risk_score` 或 `level` | `hazard_type`, `depth_m`, `velocity_mps` |
+| `rivers` | 线 | `id`, `name` | `kind`, `flow_direction`, `risk_score` |
 | `roads` | 线 | 无硬性必填 | `speed_kmh`, `road_class`, `oneway` |
 | `bridges` | 点或线 | `id`, `name`, `risk_score` | `closure_threshold`, `bridge_type` |
 
@@ -33,7 +34,8 @@
   --shelters shelters \
   --risk-zones risk_zones \
   --roads roads \
-  --bridges bridges
+  --bridges bridges \
+  --rivers rivers
 ```
 
 输出文件：
@@ -47,6 +49,7 @@ data/spatial/qingyuan/spatial_package.json
 - `places`
 - `shelters`
 - `risk_zones`
+- `rivers`
 - `bridges`
 - `routes`
 - `coverage`
@@ -63,6 +66,13 @@ data/spatial/qingyuan/spatial_package.json
 - `crosses_high_risk`
 - `coordinates`
 - `route_engine`
+
+河流字段包括：
+
+- `coordinates`
+- `kind`
+- `flow_direction`
+- `risk_score`
 
 避难点字段包括：
 
@@ -117,6 +127,8 @@ spatial_quality_score >= 0.70
 映射逻辑：
 
 - 高风险区平均风险越高，危险到达越早。
+- 河流线按上游到下游顺序保存，前端会据此显示流向。
+- 涵洞/桥梁应落在河流或支沟与道路交汇处；否则空间包虽然可运行，但不应作为严肃地理证据。
 - 高风险路线占比越高，桥梁封闭和绕行压力越大。
 - 路线时间越长，所需预警提前量越大。
 - 避难点覆盖缺口越大，通信失败和资源排队风险越高。
@@ -128,10 +140,11 @@ spatial_quality_score >= 0.70
 
 1. 用真实村居、养老机构、学校、医院和避难点位置替代手绘点。
 2. 用真实道路网络替代直线连接。
-3. 给桥梁/涵洞补 `risk_score` 和 `closure_threshold`。
-4. 把风险区拆成河道漫溢、积水、山洪沟、低洼路段等类型。
-5. 给避难点补照护容量、医疗支持、备用电源。
-6. 对关键路线人工核验时间，形成 QGIS 与实地认知的一致校准。
+3. 添加河流/支沟图层，并确保河流坐标顺序表示真实流向。
+4. 给桥梁/涵洞补 `risk_score`、`closure_threshold`，并检查其是否位于道路与河流/支沟交汇处。
+5. 把风险区拆成河道漫溢、积水、山洪沟、低洼路段等类型。
+6. 给避难点补照护容量、医疗支持、备用电源。
+7. 对关键路线人工核验时间，形成 QGIS 与实地认知的一致校准。
 
 ## 当前限制
 

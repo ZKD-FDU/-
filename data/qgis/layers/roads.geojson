@@ -12,89 +12,49 @@
       "type": "Feature",
       "properties": {
         "id": "road_north_school",
-        "name": "北谷-学校道路"
+        "name": "北谷-东桥-学校道路",
+        "origin_id": "north_valley",
+        "shelter_id": "school_shelter",
+        "speed_kmh": 24,
+        "road_class": "county"
       },
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            121.318,
-            31.305
-          ],
-          [
-            121.36,
-            31.29
-          ],
-          [
-            121.46,
-            31.248
-          ]
-        ]
-      }
+      "geometry": { "type": "LineString", "coordinates": [[121.316, 31.318], [121.338, 31.302], [121.348, 31.294], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] }
     },
     {
       "type": "Feature",
       "properties": {
         "id": "road_town_school",
-        "name": "清源镇-学校道路"
+        "name": "清源镇-学校台地道路",
+        "origin_id": "qingyuan_town",
+        "shelter_id": "school_shelter",
+        "speed_kmh": 28,
+        "road_class": "urban"
       },
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            121.392,
-            31.258
-          ],
-          [
-            121.46,
-            31.248
-          ]
-        ]
-      }
+      "geometry": { "type": "LineString", "coordinates": [[121.388, 31.276], [121.421, 31.272], [121.456, 31.266]] }
     },
     {
       "type": "Feature",
       "properties": {
         "id": "road_south_gym",
-        "name": "南谷-体育馆道路"
+        "name": "南谷-南涵洞-体育馆道路",
+        "origin_id": "south_valley",
+        "shelter_id": "gym_shelter",
+        "speed_kmh": 22,
+        "road_class": "township"
       },
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            121.428,
-            31.205
-          ],
-          [
-            121.405,
-            31.225
-          ]
-        ]
-      }
+      "geometry": { "type": "LineString", "coordinates": [[121.392, 31.206], [121.409, 31.218], [121.421, 31.228], [121.432, 31.236]] }
     },
     {
       "type": "Feature",
       "properties": {
         "id": "road_nursing_school",
-        "name": "养老院-学校道路"
+        "name": "养老院-东桥-学校道路",
+        "origin_id": "nursing_home",
+        "shelter_id": "school_shelter",
+        "speed_kmh": 20,
+        "road_class": "care_transfer"
       },
-      "geometry": {
-        "type": "LineString",
-        "coordinates": [
-          [
-            121.346,
-            31.282
-          ],
-          [
-            121.37,
-            31.27
-          ],
-          [
-            121.46,
-            31.248
-          ]
-        ]
-      }
+      "geometry": { "type": "LineString", "coordinates": [[121.35, 31.292], [121.382, 31.269], [121.421, 31.264], [121.456, 31.266]] }
     }
   ]
 }
