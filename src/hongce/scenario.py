@@ -7,7 +7,7 @@ personal data or sensitive facility coordinates are used.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import random
 
 from .models import Household, InfrastructureNode, Institution, NetworkEdge, PersonAgent
@@ -47,6 +47,8 @@ class SyntheticScenario:
     network_edges: list[NetworkEdge]
     hazard: HazardConfig
     resources: ResourceProfile
+    routes: list[dict] = field(default_factory=list)
+    transport: dict = field(default_factory=dict)
 
     @property
     def person_by_id(self) -> dict[str, PersonAgent]:
@@ -70,8 +72,8 @@ def generate_qingyuan(seed: int = 20260806, population: int = 2000) -> Synthetic
     edges: list[NetworkEdge] = []
 
     nursing_count = min(69, max(20, population // 25))
-    hospital_patient_count = max(30, population // 80)
-    school_count = max(80, population // 20)
+    hospital_patient_count = min(max(30, population // 80), max(0, population - nursing_count))
+    school_count = min(max(80, population // 20), max(0, population - nursing_count - hospital_patient_count))
 
     def add_person(
         idx: int,
@@ -287,7 +289,7 @@ def generate_qingyuan(seed: int = 20260806, population: int = 2000) -> Synthetic
                     edge_id += 1
 
     for inst in institutions:
-        for person_id in inst.resident_ids[:120]:
+        for person_id in inst.resident_ids:
             edges.append(
                 NetworkEdge(
                     id=f"e{edge_id:06d}",
@@ -303,7 +305,7 @@ def generate_qingyuan(seed: int = 20260806, population: int = 2000) -> Synthetic
             edge_id += 1
 
     for location in ["north_valley", "south_valley", "nursing_home", "qingyuan_town"]:
-        for person_id in by_location.get(location, [])[:120]:
+        for person_id in by_location.get(location, []):
             edges.append(
                 NetworkEdge(
                     id=f"e{edge_id:06d}",

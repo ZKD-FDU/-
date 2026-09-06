@@ -2,11 +2,14 @@
 
 洪策：基于真实灾害事故调查报告训练素材的极端事件人员转移与协同治理多智能体政策推演系统。
 
-Current status: runnable competition MVP. The system includes a deterministic
-simulation kernel, S0-S5 policies, A/B/C batch experiments, HTTP API, seven-page
-frontend workbench, a 28-case emergency-report training corpus, tests, and
-delivery documents. It runs without external model keys; policy comparisons are
-produced from actual simulation runs.
+本轮升级为 **v3 合成情景沙盘**：定时到达与资源守恒、延迟关系传播和机构授权、道路积水与并发容量、备用路线、分安置点接收能力、事件驱动的车辆回放，以及同种子政策实验。前端主沙盘不依赖外部地图或 Three.js CDN。
+
+- [模型依据、公式与边界](docs/model-v3.md)
+- [本轮验证结果](docs/validation-v3.md)
+- [1,550 次标准实验汇总](data/validation/competition_v3.json) / [逐次记录 CSV](data/validation/competition_v3_runs.csv)
+- [300 次运输敏感性实验及逐种子记录](data/validation/sensitivity_v3.json)
+
+当前尚未使用实测洪水或独立演练数据完成校准。v2 结果仅为修正阶段档案，不能与 v3 混算。候选参数搜索不是已训练的强化学习策略，综合方案不保证在所有情景中最优。
 
 ## Local Commands
 
@@ -49,6 +52,7 @@ fetch event streams and individual traces, and execute A/B/C policy experiments.
 API endpoints:
 
 - `GET /health`
+- `GET /validation/latest`
 - `GET /cases`
 - `GET /cases/{case_id}`
 - `GET /cases/{case_id}/scenario`
@@ -123,3 +127,14 @@ See `docs/qgis_pyqgis_integration.md` and `docs/qgis_spatial_data_standard.md`.
 - `api/`: service, optional FastAPI app, no-dependency HTTP server.
 - `web/`: zero-dependency browser workbench.
 - `docs/`: architecture, technical document, model/data cards, validation report, demo script, decision/RL design, calibration and QGIS data standards.
+
+## Reproduce v3 evidence
+
+```bash
+PYTHONPATH=src python scripts/validate_competition.py
+PYTHONPATH=src python scripts/validate_sensitivity.py
+```
+
+Windows PowerShell: first run `$env:PYTHONPATH="src"`, then use the same `python` commands without the `PYTHONPATH=src` prefix.
+
+Open `http://127.0.0.1:5173/?sandbox=1` for an automatically computed 500-person preview, or `http://127.0.0.1:5173/?review=1` for the completed experiment bundle. In the sandbox, select a place/road/vehicle, replay time, change a pressure scenario, and apply parameters to rerun. Changed inputs do not relabel a previous run as a new result.

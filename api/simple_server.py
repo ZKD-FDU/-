@@ -25,6 +25,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/health":
             self.reply(service.health())
             return
+        if path == '/validation/latest':
+            self.reply(service.latest_validation())
+            return
         if path == "/spatial/package":
             self.reply(service.get_spatial_package(first(query, "path")))
             return

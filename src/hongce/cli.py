@@ -10,6 +10,7 @@ from .engine import run_policy
 from .experiments import run_named_experiments, run_policy_batch, write_explanation_pack
 from .models import PolicyId
 from .scenario import generate_qingyuan
+from .configuration import build_scenario, normalize_scenario_config
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,7 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         print(path)
         return 0
     if args.command == "run":
-        result = run_policy(args.policy, seed=args.seed, population=args.population, output_dir=args.out_dir)
+        scenario=build_scenario(args.seed,args.population,normalize_scenario_config({}))
+        result = run_policy(args.policy, seed=args.seed, scenario=scenario, output_dir=args.out_dir)
         print(json.dumps(result.metrics.model_dump(mode="json"), ensure_ascii=False, indent=2))
         return 0
     if args.command == "batch":
@@ -81,7 +83,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result["experiments"], ensure_ascii=False, indent=2))
         return 0
     if args.command == "explain":
-        result = run_policy(args.policy, seed=args.seed, population=args.population)
+        scenario=build_scenario(args.seed,args.population,normalize_scenario_config({}))
+        result = run_policy(args.policy, seed=args.seed, scenario=scenario)
         path = write_explanation_pack(result, args.out_dir)
         print(path)
         return 0

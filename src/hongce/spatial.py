@@ -119,6 +119,9 @@ def derive_scenario_overrides(data: dict[str, Any]) -> dict[str, Any]:
         "care_workers": int(resources.get("care_workers") or max(12, math.ceil(vulnerable_population / 10))),
         "stretchers": int(resources.get("stretchers") or max(6, math.ceil(vulnerable_population / 24))),
         "shelter_beds": int(shelter_beds),
+        "shelters": [dict(s) for s in data.get("shelters", [])],
+        "routes": [{**r, "id": r.get("id") or f"route-{r.get('origin_id')}-{r.get('shelter_id')}-{i}"}
+                   for i, r in enumerate(data.get("routes", []))],
     }
 
 

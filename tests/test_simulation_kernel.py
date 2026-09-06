@@ -1,3 +1,5 @@
+import tempfile
+from pathlib import Path
 import unittest
 
 from hongce.engine import requires_transfer, run_policy
@@ -7,6 +9,10 @@ from hongce.scenario import generate_qingyuan
 
 
 class SimulationKernelTest(unittest.TestCase):
+    def setUp(self):
+        self.output_dir = tempfile.TemporaryDirectory(prefix="hongce-test-")
+        self.addCleanup(self.output_dir.cleanup)
+
     def test_scenario_generation_is_reproducible(self) -> None:
         a = generate_qingyuan(seed=11, population=300)
         b = generate_qingyuan(seed=11, population=300)
@@ -48,7 +54,7 @@ class SimulationKernelTest(unittest.TestCase):
         self.assertTrue(requires_transfer(nursing_resident))
 
     def test_batch_uses_actual_runs(self) -> None:
-        result = run_policy_batch(policies=["S0", "S3", "S5"], seeds=[21, 22], population=250, output_dir="outputs/test_experiments")
+        result = run_policy_batch(policies=["S0", "S3", "S5"], seeds=[21, 22], population=250, output_dir=str(Path(self.output_dir.name) / "test_experiments"))
         self.assertEqual(result["label"], "SIMULATED")
         self.assertEqual(len(result["runs"]), 6)
         self.assertEqual(result["summary"]["S0"]["runs"], 2)
@@ -62,11 +68,11 @@ class SimulationKernelTest(unittest.TestCase):
         self.assertGreater(max(rates.values()), min(rates.values()))
 
     def test_named_experiments_and_explanation_are_simulated(self) -> None:
-        experiments = run_named_experiments(seeds=[31], population=220, output_dir="outputs/test_named_experiments")
+        experiments = run_named_experiments(seeds=[31], population=220, output_dir=str(Path(self.output_dir.name) / "test_named_experiments"))
         self.assertEqual(experiments["label"], "SIMULATED")
         self.assertIn("A_money_allocation", experiments["experiments"])
         result = run_policy("S5", seed=31, population=220)
-        path = write_explanation_pack(result, "outputs/test_named_experiments")
+        path = write_explanation_pack(result, str(Path(self.output_dir.name) / "test_named_experiments"))
         self.assertTrue(path.exists())
 
 

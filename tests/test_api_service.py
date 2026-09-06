@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 import unittest
 
 from api import service
 
 
 class ApiServiceTest(unittest.TestCase):
+    def setUp(self):
+        self.output_dir = tempfile.TemporaryDirectory(prefix="hongce-test-")
+        self.addCleanup(self.output_dir.cleanup)
+
     def test_health_reports_no_external_model_requirement(self) -> None:
         payload = service.health()
         self.assertEqual(payload["status"], "ok")
@@ -34,7 +40,7 @@ class ApiServiceTest(unittest.TestCase):
                 "policy_id": "S3",
                 "seed": 42,
                 "population": 120,
-                "output_dir": "outputs/test_api",
+                "output_dir": str(Path(self.output_dir.name) / "test_api"),
             }
         )
         self.assertEqual(response["status"], "succeeded")
@@ -87,7 +93,7 @@ class ApiServiceTest(unittest.TestCase):
                 "seed": 43,
                 "population": 120,
                 "case_id": "HC-MEM-001",
-                "output_dir": "outputs/test_api",
+                "output_dir": str(Path(self.output_dir.name) / "test_api"),
             }
         )
         self.assertEqual(response["status"], "succeeded")
@@ -102,7 +108,7 @@ class ApiServiceTest(unittest.TestCase):
                 "seed": 44,
                 "population": 140,
                 "case_id": "HC-MEM-002",
-                "output_dir": "outputs/test_api",
+                "output_dir": str(Path(self.output_dir.name) / "test_api"),
             }
         )
         stressed = service.run_simulation(
@@ -124,7 +130,7 @@ class ApiServiceTest(unittest.TestCase):
                     "stretchers": 3,
                     "shelter_beds": 80,
                 },
-                "output_dir": "outputs/test_api",
+                "output_dir": str(Path(self.output_dir.name) / "test_api"),
             }
         )
         self.assertNotEqual(base["run_id"], stressed["run_id"])
@@ -140,7 +146,7 @@ class ApiServiceTest(unittest.TestCase):
                 "experiment": "s0_s3_s5",
                 "seeds": [71, 72],
                 "population": 120,
-                "output_dir": "outputs/test_api_experiments",
+                "output_dir": str(Path(self.output_dir.name) / "test_api_experiments"),
             }
         )
         self.assertEqual(response["status"], "succeeded")

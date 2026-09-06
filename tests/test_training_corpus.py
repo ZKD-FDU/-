@@ -8,12 +8,6 @@ from pathlib import Path
 class TrainingCorpusTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        subprocess.run(
-            [sys.executable, "scripts/build_hongce_training_corpus.py"],
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
         cls.payload = json.loads(Path("data/processed/hongce_training_case_corpus.json").read_text(encoding="utf-8"))
         cls.cases = cls.payload["cases"]
 

@@ -16,7 +16,8 @@ from hongce.calibration import (
 from hongce.decision import contextual_bandit_recommendation, default_mdp_definition, optimize_policy_parameters
 from hongce.engine import run_policy
 from hongce.experiments import run_named_experiments, run_policy_batch, write_explanation_pack
-from hongce.models import PolicyId
+from hongce.evaluation import run_transport_sensitivity
+from hongce.models import PolicyId, stable_config_hash
 from hongce.scenario import HazardConfig, ResourceProfile, SyntheticScenario, generate_qingyuan
 from hongce.spatial import derive_scenario_overrides, load_spatial_package, spatial_context, summarize_spatial_package
 
@@ -42,8 +43,26 @@ def health() -> dict[str, Any]:
     }
 
 
+def latest_validation() -> dict[str, Any]:
+    path = Path('data/validation/competition_v3.json')
+    if not path.exists():
+        path = Path('data/validation/competition_v2.json')
+    if not path.exists():
+        return {'error': '尚未生成验证成果，请先运行 scripts/validate_competition.py'}
+    bundle=json.loads(path.read_text(encoding='utf-8'))
+    sensitivity=Path('data/validation/sensitivity_v3.json')
+    if sensitivity.exists() and bundle.get('code_version')=='hongce-network-kernel-v3':
+        bundle['sensitivity']=json.loads(sensitivity.read_text(encoding='utf-8'))
+        bundle['run_count']+=len(bundle['sensitivity']['runs'])
+    return bundle
+
+
 def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
-    population = int(payload.get("population", 2000))
+    try:
+        population = int(payload.get("population", 2000))
+        int(payload.get('seed',20260806))
+    except (ValueError,TypeError,OverflowError):
+        return {'valid':False,'reason':'人口和随机种子必须为有限整数'}
     if population < 50:
         return {"valid": False, "reason": "人口数量至少为 50 才能进行有效仿真"}
     if population > 5000:
@@ -56,7 +75,10 @@ def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
         spatial = load_optional_spatial_context(payload)
     except (FileNotFoundError, ValueError) as error:
         return {"valid": False, "reason": str(error)}
-    scenario_config = normalize_scenario_config(merge_spatial_overrides(payload.get("scenario_overrides", {}), spatial))
+    try:
+        scenario_config = normalize_scenario_config(merge_spatial_overrides(payload.get("scenario_overrides", {}), spatial))
+    except (ValueError,TypeError,OverflowError):
+        return {'valid':False,'reason':'情景参数类型不正确，请检查数值输入'}
     error = validate_scenario_config(scenario_config)
     if error:
         return {"valid": False, "reason": error}
@@ -71,6 +93,9 @@ def validate_scenario(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def run_simulation(payload: dict[str, Any]) -> dict[str, Any]:
+    validation = validate_scenario(payload)
+    if not validation['valid']:
+        return {'status':'failed', 'error':validation['reason']}
     policy = payload.get("policy_id", "S0")
     seed = int(payload.get("seed", 20260806))
     population = int(payload.get("population", 2000))
@@ -151,24 +176,37 @@ def get_agent_trace(run_id: str, agent_id: str) -> dict[str, Any]:
     data = get_simulation(run_id)
     traces = [trace for trace in data.get("traces", []) if trace.get("actor_id") == agent_id]
     agents = [agent for agent in data.get("agents", []) if agent.get("id") == agent_id]
-    return {"run_id": run_id, "agent": agents[0] if agents else None, "traces": traces}
+    events = [e for e in data.get('events', []) if e.get('payload', {}).get('person') == agent_id
+              or agent_id in e.get('payload', {}).get('people', [])]
+    return {"run_id": run_id, "agent": agents[0] if agents else None, "traces": traces, 'events':events}
 
 
 def run_experiment(payload: dict[str, Any]) -> dict[str, Any]:
+    validation = validate_scenario(payload)
+    if not validation['valid']:
+        return {'status':'failed', 'error':validation['reason']}
+    scenario_config = validation['scenario_config']
     population = int(payload.get("population", 2000))
     seeds = payload.get("seeds")
     if isinstance(seeds, str):
         seeds = [int(s.strip()) for s in seeds.split(",") if s.strip()]
     elif not seeds:
         seeds = list(range(202608060, 202608110))
+    seeds = list(dict.fromkeys(int(seed) for seed in seeds))
+    if not 1 <= len(seeds) <= 200:
+        return {'status':'failed','error':'每组实验须包含 1 到 200 个不同种子'}
     output_dir = payload.get("output_dir", "outputs/api_experiments")
     experiment = payload.get("experiment", "s0_s3_s5")
     if experiment == "abc":
-        data = run_named_experiments(seeds=seeds, population=population, output_dir=output_dir)
+        data = run_named_experiments(seeds=seeds, population=population, output_dir=output_dir, scenario_config=scenario_config)
+    elif experiment == 'transport_sensitivity':
+        data = run_transport_sensitivity(seeds=seeds,population=population,output_dir=output_dir,scenario_config=scenario_config)
     else:
         policies = payload.get("policies", [PolicyId.S0.value, PolicyId.S3.value, PolicyId.S5.value])
-        data = run_policy_batch(policies=policies, seeds=seeds, population=population, output_dir=output_dir)
-    experiment_id = f"exp-{experiment}-{population}-{len(seeds)}"
+        data = run_policy_batch(policies=policies, seeds=seeds, population=population, output_dir=output_dir, scenario_config=scenario_config)
+    data['case_context'] = validation.get('case_context')
+    experiment_id = 'exp-' + stable_config_hash({'experiment':experiment,'population':population,'seeds':seeds,
+        'scenario':scenario_config,'policies':payload.get('policies'), 'case_id':payload.get('case_id')})
     EXPERIMENT_CACHE[experiment_id] = data
     return {"experiment_id": experiment_id, "status": "succeeded", "comparison": data}
 
@@ -437,133 +475,5 @@ def merge_spatial_overrides(overrides: dict[str, Any] | None, spatial: dict[str,
     return merged
 
 
-DEFAULT_SCENARIO_CONFIG: dict[str, Any] = {
-    "vulnerable_ratio": 0.32,
-    "timestep_minutes": 5,
-    "warning_minute": 45,
-    "evacuation_order_minute": 75,
-    "bridge_closure_minute": 120,
-    "danger_arrival_minute": 180,
-    "communication_failure_minute": 90,
-    "communication_failure_rate": 0.30,
-    "vehicles": 18,
-    "care_workers": 34,
-    "stretchers": 18,
-    "shelter_beds": 700,
-}
-
-
-def normalize_scenario_config(overrides: dict[str, Any] | None) -> dict[str, Any]:
-    overrides = overrides or {}
-    config = dict(DEFAULT_SCENARIO_CONFIG)
-    for key in config:
-        if key in overrides and overrides[key] not in {"", None}:
-            config[key] = overrides[key]
-    for key in {
-        "timestep_minutes",
-        "warning_minute",
-        "evacuation_order_minute",
-        "bridge_closure_minute",
-        "danger_arrival_minute",
-        "communication_failure_minute",
-        "vehicles",
-        "care_workers",
-        "stretchers",
-        "shelter_beds",
-    }:
-        config[key] = int(float(config[key]))
-    for key in {"vulnerable_ratio", "communication_failure_rate"}:
-        config[key] = float(config[key])
-    return config
-
-
-def validate_scenario_config(config: dict[str, Any]) -> str | None:
-    if not 0.05 <= config["vulnerable_ratio"] <= 0.85:
-        return "脆弱人口比例必须在 0.05 到 0.85 之间"
-    if config["timestep_minutes"] not in {5, 10, 15}:
-        return "时间步长只能是 5、10 或 15 分钟"
-    if not 0 <= config["warning_minute"] < config["danger_arrival_minute"]:
-        return "预警时刻必须早于危险到达时刻"
-    if not config["warning_minute"] <= config["evacuation_order_minute"] <= config["danger_arrival_minute"]:
-        return "转移命令时刻必须位于预警时刻与危险到达时刻之间"
-    if not config["warning_minute"] <= config["communication_failure_minute"] <= config["danger_arrival_minute"]:
-        return "通信失败时刻必须位于预警时刻与危险到达时刻之间"
-    if not 0 <= config["bridge_closure_minute"] <= config["danger_arrival_minute"]:
-        return "桥梁封闭时刻不能晚于危险到达时刻"
-    if not 0 <= config["communication_failure_rate"] <= 0.95:
-        return "通信失败率必须在 0 到 0.95 之间"
-    for key in {"vehicles", "care_workers", "stretchers"}:
-        if not 1 <= config[key] <= 300:
-            label = {"vehicles": "转运车辆", "care_workers": "照护人员", "stretchers": "担架数量"}[key]
-            return f"{label}必须在 1 到 300 之间"
-    if not 50 <= config["shelter_beds"] <= 5000:
-        return "避难床位必须在 50 到 5000 之间"
-    return None
-
-
-def build_scenario(seed: int, population: int, scenario_config: dict[str, Any]) -> SyntheticScenario:
-    scenario = generate_qingyuan(seed=seed, population=population)
-    scenario.hazard = HazardConfig(
-        timestep_minutes=scenario_config["timestep_minutes"],
-        start_minute=0,
-        end_minute=max(240, scenario_config["danger_arrival_minute"] + 60),
-        warning_minute=scenario_config["warning_minute"],
-        evacuation_order_minute=scenario_config["evacuation_order_minute"],
-        bridge_closure_minute=scenario_config["bridge_closure_minute"],
-        danger_arrival_minute=scenario_config["danger_arrival_minute"],
-        communication_failure_minute=scenario_config["communication_failure_minute"],
-        communication_failure_rate=scenario_config["communication_failure_rate"],
-    )
-    scenario.resources = replace(
-        ResourceProfile(),
-        vehicles=scenario_config["vehicles"],
-        care_workers=scenario_config["care_workers"],
-        stretchers=scenario_config["stretchers"],
-        shelter_beds=scenario_config["shelter_beds"],
-    )
-    scenario.people = tune_vulnerable_ratio(scenario, scenario_config["vulnerable_ratio"])
-    return scenario
-
-
-def tune_vulnerable_ratio(scenario: SyntheticScenario, target_ratio: float):
-    target = round(len(scenario.people) * target_ratio)
-    people = list(scenario.people)
-    vulnerable = [person for person in people if person.is_vulnerable]
-    if len(vulnerable) == target:
-        return people
-    if len(vulnerable) < target:
-        need = target - len(vulnerable)
-        tuned = 0
-        new_people = []
-        for person in people:
-            if tuned < need and not person.is_vulnerable:
-                person = person.model_copy(
-                    update={
-                        "age": max(person.age, 76),
-                        "mobility": "limited",
-                        "care_dependency": "partial",
-                        "digital_access": min(person.digital_access, 0.28),
-                        "chronic_condition": True,
-                    }
-                )
-                tuned += 1
-            new_people.append(person)
-        return new_people
-
-    excess = len(vulnerable) - target
-    tuned = 0
-    new_people = []
-    for person in people:
-        if tuned < excess and person.is_vulnerable and not person.institution_id:
-            person = person.model_copy(
-                update={
-                    "age": min(person.age, 58),
-                    "mobility": "independent",
-                    "care_dependency": "none",
-                    "digital_access": max(person.digital_access, 0.72),
-                    "chronic_condition": False,
-                }
-            )
-            tuned += 1
-        new_people.append(person)
-    return new_people
+from hongce.configuration import (DEFAULT_SCENARIO_CONFIG, normalize_scenario_config,
+    validate_scenario_config, build_scenario, tune_vulnerable_ratio)
