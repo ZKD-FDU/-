@@ -1,3 +1,5 @@
+import { createSandbox } from "./sandbox.js";
+import { createWorkbench } from "./workbench.js";
 const urlParams = new URLSearchParams(window.location.search);
 const API_BASE = urlParams.get("api") || window.HONGCE_API_BASE || "http://127.0.0.1:8000";
 const SPATIAL_PACKAGE_PATH = "data/spatial/qingyuan";
@@ -7,11 +9,11 @@ const policies = [
   ["S1", "设施优先加固", "桥路与避难点"],
   ["S2", "数字预警前移", "更早触达"],
   ["S3", "网格叫应确认", "逐户闭环"],
-  ["S4", "资源集中调拨", "车辆/床位扩容"],
+  ["S4", "社区互助优先", "包保/邻里/备用通信"],
   ["S5", "韧性综合方案", "前移+叫应+调拨"]
 ];
 
-const tabs = ["县域态势总览", "情景编辑器", "参数校准", "实时推演", "叫应确认台", "政策对比", "策略优化与RL", "个体与事件解释", "复盘与建议"];
+const tabs = ["县域态势总览", "情景编辑器", "参数校准", "实时推演", "叫应确认台", "政策对比", "策略参数搜索", "个体与事件解释", "复盘与建议"];
 const mapModes = [
   ["hydrology", "水文预报"],
   ["warning", "预警设置"],
@@ -92,18 +94,51 @@ const state = {
   },
   editorSub: "params",
   mapMode: "hydrology",
+  navCollapsed: readStoredFlag("hongce.navCollapsed", false),
+  layers: { terrain: true, water: true, flood: true, routes: true, shelter: true },
+  hudCollapsed: { left: false, right: false },
+  hudHidden: false,
+  savedRuns: {},
+  experimentRuns: 3,
+  experimentKind: "baseline",
   busy: false
 };
 
+const layerItems = [
+  ["terrain", "三维地形"],
+  ["water", "河道水位"],
+  ["flood", "风险淹没"],
+  ["routes", "转移路线"],
+  ["shelter", "避难承载"]
+];
+
 const $ = (selector) => document.querySelector(selector);
 const content = $("#content");
-let threeAnimationFrame = null;
+
+function readStoredFlag(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : raw === "1";
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStoredFlag(key, value) {
+  try {
+    window.localStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    /* localStorage 不可用时忽略，只影响记忆功能 */
+  }
+}
 
 function pct(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
   return `${Math.round(Number(value || 0) * 1000) / 10}%`;
 }
 
 function num(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
   return Number(value || 0).toFixed(2);
 }
 
@@ -117,11 +152,13 @@ async function request(path, options = {}) {
     ...options
   });
   if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-  return response.json();
+  const data = await response.json();
+  if (data.error || data.status === "failed") throw new Error(data.error || "请求失败");
+  return data;
 }
 
 async function init() {
-  $("#tabs").innerHTML = tabs.map((tab) => `<button data-tab="${tab}" class="${tab === state.active ? "active" : ""}">${tab}</button>`).join("");
+  $("#tabs").innerHTML = tabs.map((tab) => `<button data-tab="${tab}" data-short="${escapeHtml(tab.slice(0, 1))}" title="${escapeHtml(tab)}" class="${tab === state.active ? "active" : ""}">${tab}</button>`).join("");
   $("#policy").innerHTML = policies.map(([id, name]) => `<option value="${id}" ${id === "S5" ? "selected" : ""}>${id} · ${name}</option>`).join("");
   $("#tabs").addEventListener("click", (event) => {
     const button = event.target.closest("button");
@@ -130,6 +167,14 @@ async function init() {
     render();
   });
   $("#run").addEventListener("click", () => runSimulation($("#policy").value));
+  applyNavCollapsed();
+  $("#nav-toggle").addEventListener("click", () => {
+    state.navCollapsed = !state.navCollapsed;
+    writeStoredFlag("hongce.navCollapsed", state.navCollapsed);
+    applyNavCollapsed();
+    // 侧栏宽度变化后画布尺寸失效，等过渡结束再按新宽度重建地图。
+    window.setTimeout(render, 240);
+  });
   try {
     const health = await request("/health");
     $("#health").textContent = `API ${health.status} · ${health.training_case_count || 0} cases`;
@@ -142,10 +187,19 @@ async function init() {
     }
     await loadCases();
     await loadParameters();
+    if (urlParams.has('review')) {
+      const bundle = await request('/validation/latest');
+      state.validationBundle = bundle;
+      state.validationStored = true;
+      state.experiment = bundle.baseline;
+      state.active = '政策对比';
+      setNotice(`本轮成果 · ${bundle.run_count} 次可复现实验 · 每方案 ${bundle.seeds.length} 个种子`);
+    }
   } catch {
     $("#health").textContent = "API offline";
   }
   render();
+  if(urlParams.has('sandbox')) await runSimulation($('#policy').value);
 }
 
 async function loadSpatialPackage() {
@@ -211,6 +265,7 @@ async function deriveParameterScenario() {
 }
 
 async function runSimulation(policy) {
+  sandbox.stop();
   setBusy(true, "正在运行多智能体仿真...");
   try {
     const seed = Number($("#seed").value);
@@ -225,6 +280,9 @@ async function runSimulation(policy) {
       body: JSON.stringify({ policy_id: policy, seed, population, case_id: caseId, scenario_overrides, spatial_package_path, output_dir: "outputs/api" })
     });
     state.run = await request(`/simulations/${created.run_id}`);
+    state.savedRuns[policy] = state.run;
+    state.sandDirty = false;
+    state.sandMinute = state.run.scenario_config.evacuation_order_minute + 30;
     const first = state.run.agents.find((agent) => agent.is_vulnerable) || state.run.agents[0];
     state.trace = first ? await request(`/simulations/${created.run_id}/agents/${first.id}/trace`) : null;
     setNotice(`已生成 ${created.run_id}`);
@@ -243,13 +301,18 @@ async function runExperiment() {
     const response = await request("/experiments/run", {
       method: "POST",
       body: JSON.stringify({
-        experiment: "abc",
-        seeds: [202608060, 202608061, 202608062],
+        experiment: state.experimentKind === "abc" ? "abc" : state.experimentKind === "sensitivity" ? "transport_sensitivity" : "s0_s3_s5",
+        seeds: Array.from({length: state.experimentRuns || 3}, (_, i) => Number($("#seed").value) + i),
+        scenario_overrides: buildScenarioOverrides(),
+        spatial_package_path: state.spatialContext ? SPATIAL_PACKAGE_PATH : undefined,
+        case_id: state.selectedCase?.case_id,
         population,
         output_dir: "outputs/api_experiments"
       })
     });
     state.experiment = response.comparison;
+    state.validationStored = false;
+    state.experimentInput = JSON.stringify(buildScenarioOverrides());
     setNotice(`实验完成：${response.experiment_id}`);
   } catch (error) {
     setNotice(error.message || "实验失败");
@@ -290,7 +353,7 @@ async function runPolicyOptimization() {
 }
 
 async function runBanditRecommendation() {
-  setBusy(true, "正在运行 Contextual Bandit 策略推荐...");
+  setBusy(true, "正在比较候选动作 策略推荐...");
   try {
     state.bandit = await request("/decision/bandit", {
       method: "POST",
@@ -315,6 +378,8 @@ function setBusy(value, text) {
   state.busy = value;
   const run = $("#run");
   if (run) run.disabled = value;
+  document.querySelectorAll("#sand-run, #sand-preset, [data-sand-config], #seed, #population, #policy, #run-experiment, #run-optimization, #run-bandit, #experiment-kind, #experiment-runs, [data-run-policy]").forEach(el => el.disabled = value);
+  document.getElementById("notice").classList.toggle("is-busy", value);
   if (text) setNotice(text);
 }
 
@@ -322,25 +387,37 @@ function setNotice(text) {
   $("#notice").textContent = text;
 }
 
+function applyNavCollapsed() {
+  const shell = document.querySelector(".shell");
+  const toggle = $("#nav-toggle");
+  if (shell) shell.classList.toggle("nav-collapsed", state.navCollapsed);
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(!state.navCollapsed));
+    const label = state.navCollapsed ? "展开侧边栏" : "折叠侧边栏";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+  }
+}
+
 function render() {
   $("#page-title").textContent = state.active;
   const runControls = $("#run-controls");
-  if (runControls) runControls.hidden = state.active !== "县域态势总览";
+  if (runControls) runControls.hidden = false;
   document.querySelectorAll("#tabs button").forEach((button) => button.classList.toggle("active", button.dataset.tab === state.active));
   const route = {
-    "县域态势总览": overview,
+    "县域态势总览": sandbox.view,
     "情景编辑器": editor,
     "参数校准": calibrationWorkbench,
-    "实时推演": timeline,
+    "实时推演": sandbox.view,
     "叫应确认台": callDesk,
     "政策对比": comparison,
-    "策略优化与RL": decisionLab,
+    "策略参数搜索": decisionLab,
     "个体与事件解释": explanation,
     "复盘与建议": review
   };
   content.innerHTML = route[state.active]();
-  hydrateScenario3D();
-  hydrateStandardMap();
+  workbench.bind();
+  sandbox.bind();
   const experimentButton = $("#run-experiment");
   if (experimentButton) experimentButton.addEventListener("click", runExperiment);
   const mdpButton = $("#load-mdp");
@@ -398,6 +475,7 @@ function render() {
     const updateConfig = () => {
       const key = input.dataset.configKey;
       state.scenarioConfig[key] = input.type === "number" || input.type === "range" ? Number(input.value) : input.value;
+      state.sandDirty = !!state.run;
       syncConfigMirror(key, input.value);
     };
     input.addEventListener("input", updateConfig);
@@ -426,12 +504,7 @@ function render() {
   document.querySelectorAll("[data-run-policy]").forEach((button) => {
     button.addEventListener("click", () => runSimulation(button.dataset.runPolicy));
   });
-  document.querySelectorAll("[data-map-mode]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.mapMode = button.dataset.mapMode;
-      render();
-    });
-  });
+
 }
 
 function calibrationWorkbench() {
@@ -543,6 +616,11 @@ function buildScenarioOverrides() {
     vehicles: Number(state.scenarioConfig.vehicles),
     care_workers: Number(state.scenarioConfig.care_workers),
     stretchers: Number(state.scenarioConfig.stretchers),
+    transport_mode: "network",
+    road_capacity: Number(state.scenarioConfig.road_capacity ?? 8),
+    loading_minutes: Number(state.scenarioConfig.loading_minutes ?? 5),
+    flood_peak_m: Number(state.scenarioConfig.flood_peak_m ?? .45),
+    queue_aging_minutes: Number(state.scenarioConfig.queue_aging_minutes ?? 45),
     shelter_beds: Number(state.scenarioConfig.shelter_beds)
   };
 }
@@ -565,900 +643,6 @@ function row(label, value) {
   return `<div class="row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`;
 }
 
-function overview() {
-  const m = state.run?.metrics || {};
-  const caseContext = state.run?.case_context || state.selectedCase;
-  const spatial = state.run?.spatial_context || state.spatialContext;
-  const spatialSummary = spatial?.summary || spatialPackageSummary(state.spatialPackage);
-  return `<div class="view">
-    <section class="metric-grid">
-      ${metric("安全转移率", pct(m.safe_before_danger_rate))}
-      ${metric("脆弱群体风险", pct(m.vulnerable_harm_risk), "warn")}
-      ${metric("闭环响应", pct(m.response_closure_rate))}
-      ${metric("平均排队分钟", num(m.resource_queue_minutes_mean), "neutral")}
-    </section>
-    <section class="map-band command-band">
-      ${terrainMap(m)}
-      <div class="side-table">
-        <h2>最新运行</h2>
-        ${row("训练案例", caseContext?.case_id || "未选择")}
-        ${row("策略", state.run?.run?.policy_id || "未运行")}
-        ${row("Run ID", state.run?.run?.id || "-")}
-        ${row("中位提前量", `${m.lead_time_minutes_median || 0} 分钟`)}
-        ${row("群体公平缺口", num(m.group_safety_gap))}
-        ${row("空间包", spatial?.package_id || "离线 fallback")}
-        ${row("覆盖率/床位", `${pct(spatialSummary.coverage_rate)} / ${spatialSummary.total_shelter_capacity || state.spatialPackage?.coverage?.total_shelter_capacity || 0}`)}
-        ${row("路线均值/高风险占比", `${spatialSummary.mean_route_minutes || 0} 分钟 / ${pct(spatialSummary.high_risk_route_share)}`)}
-      </div>
-    </section>
-  </div>`;
-}
-
-function spatialPackageSummary(spatialPackage) {
-  const spatial = normalizedSpatialMapFrom(spatialPackage || fallbackSpatialMap);
-  const routes = spatial.routes || [];
-  const routeMinutes = routes.map((route) => Number(route.travel_minutes || 0)).filter(Number.isFinite);
-  const highRiskRoutes = routes.filter((route) => route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65);
-  return {
-    coverage_rate: Number(spatial.coverage?.coverage_rate || 0),
-    total_shelter_capacity: Number(spatial.coverage?.total_shelter_capacity || spatial.shelters.reduce((sum, shelter) => sum + Number(shelter.capacity || 0), 0)),
-    mean_route_minutes: routeMinutes.length ? Math.round((routeMinutes.reduce((sum, value) => sum + value, 0) / routeMinutes.length) * 100) / 100 : 0,
-    high_risk_route_share: routes.length ? highRiskRoutes.length / routes.length : 0
-  };
-}
-
-function terrainMap(metrics = {}) {
-  const spatial = normalizedSpatialMap();
-  const live = liveSpatialState(spatial);
-  const bounds = mapBounds(spatial);
-  const project = ([lon, lat]) => {
-    const width = 1000;
-    const height = 620;
-    const pad = 70;
-    const x = pad + ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon)) * (width - pad * 2);
-    const y = height - pad - ((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * (height - pad * 2);
-    return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
-  };
-  const path = (coords) => coords.map((coord, index) => `${index ? "L" : "M"}${project(coord).join(" ")}`).join(" ");
-  const closedPath = (coords) => `${path(coords)} Z`;
-  const roadPaths = spatial.routes.map((route) => {
-    const routeLive = live.routes[route.id] || {};
-    const classes = ["map-road"];
-    if (route.crosses_high_risk || route.bridge_exposure_score >= 0.65) classes.push("risk-route");
-    if (routeLive.status === "closed") classes.push("closed");
-    if (routeLive.status === "active") classes.push("active");
-    const label = `${route.name || route.id} · ${route.travel_minutes || 0} 分钟 · ${routeLive.label}`;
-    return `<path class="${classes.join(" ")}" d="${path(route.coordinates)}"><title>${escapeHtml(label)}</title></path>`;
-  }).join("");
-  const riverPaths = spatial.rivers.map((river) => {
-    const classes = ["river"];
-    if (river.kind === "tributary_culvert") classes.push("tributary");
-    const label = `${river.name || river.id} · 流向 ${river.flow_direction || "上游至下游"}`;
-    return `<path class="${classes.join(" ")}" d="${path(river.coordinates)}" marker-end="url(#flowArrow)"><title>${escapeHtml(label)}</title></path>`;
-  }).join("");
-  const riskZones = spatial.risk_zones.map((zone) => `<path class="risk-zone risk-${riskLevel(zone.risk_score)}" d="${closedPath(zone.polygon)}"><title>${escapeHtml(zone.name)} · 风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%</title></path>`).join("");
-  const contours = terrainContours();
-  const villages = spatial.places.map((place) => {
-    const [x, y] = project([place.x, place.y]);
-    const vulnerable = Math.round((place.vulnerable_population / place.population) * 100);
-    const placeLive = live.places[place.id] || { sheltered: 0, total: 0, blocked: 0, moving: 0, progress: 0 };
-    const progress = Math.round(placeLive.progress * 100);
-    const ring = Math.max(0, Math.min(100, progress));
-    const markerType = place.type || (place.id.includes("town") ? "town" : place.id.includes("nursing") ? "care" : "village");
-    return `<g class="map-point ${markerType} risk-${riskLevel(place.risk_score)}" transform="translate(${x} ${y})">
-      <circle class="progress-ring" r="15" pathLength="100" stroke-dasharray="${ring} ${100 - ring}"></circle>
-      <circle r="${markerType === "town" ? 10 : markerType === "care" ? 9 : 8}"></circle>
-      <text x="14" y="-10">${escapeHtml(place.name)}</text>
-      <text class="map-subtext" x="14" y="8">已转 ${placeLive.sheltered}/${placeLive.total || place.population} · 脆弱 ${vulnerable}%</text>
-      ${placeLive.blocked ? `<text class="map-alert" x="14" y="25">受阻 ${placeLive.blocked}</text>` : ""}
-    </g>`;
-  }).join("");
-  const shelters = spatial.shelters.map((shelter) => {
-    const [x, y] = project([shelter.x, shelter.y]);
-    const capacityShare = Math.round((live.shelteredTotal / Math.max(1, shelter.capacity || 1)) * 100);
-    return `<g class="map-point shelter" transform="translate(${x} ${y})">
-      <rect x="-9" y="-9" width="18" height="18" rx="3"></rect>
-      <text x="15" y="-8">${escapeHtml(shelter.name)}</text>
-      <text class="map-subtext" x="15" y="10">容量 ${shelter.capacity} · 总安置 ${live.shelteredTotal} · ${capacityShare}%</text>
-    </g>`;
-  }).join("");
-  const bridges = spatial.bridges.map((bridge) => {
-    const [x, y] = project([bridge.x, bridge.y]);
-    const closed = live.bridgeClosed && bridge.risk_score >= 0.65;
-    return `<g class="map-bridge ${bridge.risk_score > 0.7 ? "high" : ""} ${closed ? "closed" : ""}" transform="translate(${x} ${y})">
-      <path d="M-12 0 L12 0 M-8 -5 L-8 5 M0 -5 L0 5 M8 -5 L8 5"></path>
-      <text x="14" y="-6">${escapeHtml(bridge.name)}${closed ? " 封闭" : ""}</text>
-    </g>`;
-  }).join("");
-  const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
-  const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
-  const source = state.spatialContext?.package_id || spatial.package_id || "fallback";
-  const method = spatial.method?.route_engine || "unknown";
-  const mode = state.mapMode || "hydrology";
-  return `<div class="terrain-panel command-terrain-panel" id="terrain-panel">
-    <div class="terrain-toolbar">
-      <div class="command-title-block"><strong>清源县极端洪涝人员转移联合指挥舱</strong><span>县防汛抗旱指挥部 · 空间包 ${escapeHtml(source)} · ${escapeHtml(method)} · EPSG:4326</span></div>
-      <div class="map-badges"><span>t=${live.minute}′</span><span class="${live.commsDegraded ? "bad" : "good"}">通信${live.commsDegraded ? "受损" : "正常"}</span><span class="${live.bridgeClosed ? "bad" : "good"}">桥涵${live.bridgeClosed ? "封闭" : "可通行"}</span><span>安全转移 ${safeRate}%</span></div>
-    </div>
-    <div class="command-map-frame" data-command-mode="${mode}">
-      <div id="scenario-3d-map" class="scenario-3d-map" aria-label="三维洪涝转移数字孪生场景"></div>
-      <div id="standard-geo-map" class="standard-geo-map" aria-label="标准地理底图叠加 QGIS 实时空间态势"></div>
-      <div class="map-vignette"></div>
-      ${commandHud(live, metrics, spatial)}
-      <div class="terrain-fallback" aria-label="离线示意地形图">
-    <svg class="terrain-map" viewBox="0 0 1000 620" role="img" aria-label="洪策 QGIS 地形态势图">
-      <defs>
-        <linearGradient id="terrainBase" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#d9e8d2" />
-          <stop offset="38%" stop-color="#b8d1b0" />
-          <stop offset="68%" stop-color="#d9c58f" />
-          <stop offset="100%" stop-color="#8f846c" />
-        </linearGradient>
-        <radialGradient id="ridgeLight" cx="30%" cy="22%" r="65%">
-          <stop offset="0%" stop-color="rgba(255,255,255,0.62)" />
-          <stop offset="60%" stop-color="rgba(255,255,255,0.08)" />
-          <stop offset="100%" stop-color="rgba(50,54,44,0.22)" />
-        </radialGradient>
-        <filter id="terrainShadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#31413c" flood-opacity="0.22" />
-        </filter>
-        <marker id="flowArrow" viewBox="0 0 10 10" refX="8.6" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse">
-          <path d="M0 0 L10 5 L0 10 Z" fill="#2d7890"></path>
-        </marker>
-      </defs>
-      <rect class="terrain-bg" x="0" y="0" width="1000" height="620"></rect>
-      <path class="terrain-hillshade hill-a" d="M20 500 C150 390 205 225 360 210 C520 194 600 100 780 68 C900 48 980 90 1010 130 L1010 620 L20 620 Z"></path>
-      <path class="terrain-hillshade hill-b" d="M-40 210 C120 260 238 120 405 142 C548 160 660 260 806 235 C918 216 965 168 1035 198 L1035 -20 L-40 -20 Z"></path>
-      ${riverPaths}
-      ${contours}
-      ${riskZones}
-      ${roadPaths}
-      ${bridges}
-      ${villages}
-      ${shelters}
-      <g class="north-arrow" transform="translate(925 74)">
-        <path d="M0 -34 L13 16 L0 8 L-13 16 Z"></path>
-        <text y="42">N</text>
-      </g>
-    </svg>
-      </div>
-    </div>
-    <div class="live-strip">
-      <div><strong>${live.shelteredTotal}</strong><span>已安置对象</span></div>
-      <div><strong>${live.blockedTotal}</strong><span>受阻/资源不足</span></div>
-      <div><strong>${live.movingTotal}</strong><span>正在转移</span></div>
-      <div><strong>${live.dangerEta}′</strong><span>距危险到达</span></div>
-    </div>
-    <div class="terrain-footer">
-      <span><i class="legend risk"></i>高风险漫溢区</span>
-      <span><i class="legend road"></i>可通行路线</span>
-      <span><i class="legend closed"></i>封闭/高风险路线</span>
-      <span><i class="legend bridge"></i>桥梁/涵洞断点</span>
-      <span><i class="legend shelter"></i>避难点</span>
-      <span>资源排队 ${queue} 分钟</span>
-    </div>
-  </div>`;
-}
-
-async function hydrateScenario3D() {
-  const panel = $("#terrain-panel");
-  const container = $("#scenario-3d-map");
-  if (!panel || !container) {
-    if (threeAnimationFrame) {
-      cancelAnimationFrame(threeAnimationFrame);
-      threeAnimationFrame = null;
-    }
-    return;
-  }
-  try {
-    const THREE = await import("https://unpkg.com/three@0.160.0/build/three.module.js");
-    renderScenario3D(THREE, panel, container);
-  } catch {
-    panel.classList.remove("three-ready");
-  }
-}
-
-function renderScenario3D(THREE, panel, container) {
-  if (threeAnimationFrame) {
-    cancelAnimationFrame(threeAnimationFrame);
-    threeAnimationFrame = null;
-  }
-  const spatial = normalizedSpatialMap();
-  const live = liveSpatialState(spatial);
-  const mode = state.mapMode || "hydrology";
-  const bounds = mapBounds(spatial);
-  panel.classList.add("three-ready");
-  const rect = container.getBoundingClientRect();
-  const width = Math.round(rect.width || container.clientWidth || 960);
-  const height = Math.round(rect.height || container.clientHeight || 650);
-  container.innerHTML = "";
-
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(width, height);
-  renderer.setClearColor(0x061321, 1);
-  container.appendChild(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x061321, 48, 138);
-  const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 240);
-  camera.position.set(0, 35, 62);
-
-  const root = new THREE.Group();
-  root.rotation.x = -0.58;
-  root.rotation.y = -0.25;
-  scene.add(root);
-
-  const keyLight = new THREE.DirectionalLight(0xdff6ff, 2.6);
-  keyLight.position.set(-18, 36, 28);
-  scene.add(keyLight);
-  scene.add(new THREE.AmbientLight(0x5ba8d6, 1.12));
-  const rimLight = new THREE.PointLight(0x2bd8ff, 1.4, 120);
-  rimLight.position.set(18, 18, -22);
-  scene.add(rimLight);
-  const warningLight = new THREE.PointLight(mode === "warning" ? 0xff9d42 : 0x22c8ff, 1.6, 90);
-  warningLight.position.set(-26, 14, 14);
-  scene.add(warningLight);
-
-  const project = ([lon, lat]) => {
-    const x = ((lon - bounds.minLon) / (bounds.maxLon - bounds.minLon) - 0.5) * 82;
-    const z = -((lat - bounds.minLat) / (bounds.maxLat - bounds.minLat) - 0.5) * 54;
-    return [x, z];
-  };
-  const elevationAt = (x, z) => {
-    const nx = x / 82;
-    const nz = z / 54;
-    return 2.1 + nx * -5.6 + nz * -2.8 + Math.sin(x * 0.19) * 0.75 + Math.cos(z * 0.22) * 0.55;
-  };
-
-  const terrain = buildTerrainMesh(THREE, elevationAt);
-  root.add(terrain);
-  root.add(buildCommandGrid(THREE));
-  root.add(buildRainAndGaugeLayer(THREE, mode, live));
-
-  for (const zone of spatial.risk_zones) root.add(buildPolygonMesh(THREE, zone.polygon.map(project), mode === "simulation" ? 0.34 : 0.5, elevationAt));
-  for (const river of spatial.rivers) root.add(buildTube(THREE, river.coordinates.map(project), elevationAt, river.kind === "tributary_culvert" ? 0.15 : 0.28, 0x27d8ff, 0.9));
-  for (const route of spatial.routes) {
-    const risky = route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65;
-    const color = risky ? 0xffb24e : 0xf4de73;
-    root.add(buildTube(THREE, route.coordinates.map(project), elevationAt, mode === "simulation" || mode === "plan" ? 0.14 : 0.09, color, 0.95));
-    if (mode === "simulation" || mode === "plan") root.add(buildMovingDot(THREE, route.coordinates.map(project), elevationAt, risky));
-  }
-
-  for (const place of spatial.places) {
-    const [x, z] = project([place.x, place.y]);
-    const marker = buildPlaceMarker(THREE, place, x, elevationAt(x, z), z, mode);
-    root.add(marker);
-  }
-  for (const shelter of spatial.shelters) {
-    const [x, z] = project([shelter.x, shelter.y]);
-    root.add(buildShelterMarker(THREE, shelter, x, elevationAt(x, z), z));
-  }
-  for (const bridge of spatial.bridges) {
-    const [x, z] = project([bridge.x, bridge.y]);
-    root.add(buildBridgeMarker(THREE, bridge, x, elevationAt(x, z), z, live.bridgeClosed));
-  }
-
-  root.add(buildScanningBeam(THREE, mode));
-  root.add(buildCompass(THREE));
-  let dragging = false;
-  let lastX = 0;
-  let lastY = 0;
-  renderer.domElement.addEventListener("pointerdown", (event) => {
-    dragging = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    renderer.domElement.setPointerCapture(event.pointerId);
-  });
-  renderer.domElement.addEventListener("pointermove", (event) => {
-    if (!dragging) return;
-    root.rotation.y += (event.clientX - lastX) * 0.006;
-    root.rotation.x = Math.max(-1.02, Math.min(-0.35, root.rotation.x + (event.clientY - lastY) * 0.004));
-    lastX = event.clientX;
-    lastY = event.clientY;
-  });
-  renderer.domElement.addEventListener("pointerup", () => {
-    dragging = false;
-  });
-  renderer.domElement.addEventListener("wheel", (event) => {
-    event.preventDefault();
-    const scale = event.deltaY > 0 ? 1.08 : 0.92;
-    camera.position.multiplyScalar(scale);
-    camera.position.clampLength(34, 92);
-  }, { passive: false });
-
-  const clock = new THREE.Clock();
-  function animate() {
-    const t = clock.getElapsedTime();
-    root.traverse((child) => {
-      if (child.userData.float) child.position.y = child.userData.baseY + Math.sin(t * 1.4 + child.userData.phase) * 0.22;
-      if (child.userData.pulse) child.material.opacity = 0.38 + Math.sin(t * 1.8 + child.userData.phase) * 0.08;
-      if (child.userData.sweep) {
-        child.position.x = -36 + ((t * 9 + child.userData.phase) % 72);
-        child.material.opacity = 0.12 + Math.sin(t * 2.6) * 0.03;
-      }
-      if (child.userData.beacon) child.scale.setScalar(1 + Math.sin(t * 2.8 + child.userData.phase) * 0.08);
-      if (child.userData.movePath) {
-        const path = child.userData.movePath;
-        const idx = Math.floor((t * 0.35 + child.userData.phase) % (path.length - 1));
-        const a = path[idx];
-        const b = path[idx + 1];
-        const f = (t * 0.35 + child.userData.phase) % 1;
-        child.position.set(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f);
-      }
-    });
-    camera.lookAt(0, 0, 0);
-    renderer.render(scene, camera);
-    threeAnimationFrame = requestAnimationFrame(animate);
-  }
-  animate();
-}
-
-function buildTerrainMesh(THREE, elevationAt) {
-  const geometry = new THREE.PlaneGeometry(86, 58, 86, 58);
-  geometry.rotateX(-Math.PI / 2);
-  const colors = [];
-  const color = new THREE.Color();
-  const pos = geometry.attributes.position;
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const y = elevationAt(x, z);
-    pos.setY(i, y);
-    const mix = Math.max(0, Math.min(1, (y + 2) / 9));
-    const channel = 0.5 + Math.sin((x + z) * 0.24) * 0.07;
-    color.setRGB(0.05 + mix * 0.33, 0.22 + mix * 0.34 + channel * 0.08, 0.24 + mix * 0.2);
-    colors.push(color.r, color.g, color.b);
-  }
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
-  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.06, emissive: 0x061b25, emissiveIntensity: 0.08 }));
-}
-
-function buildCommandGrid(THREE) {
-  const group = new THREE.Group();
-  const grid = new THREE.GridHelper(88, 22, 0x38c8ff, 0x1b5972);
-  grid.position.y = 0.42;
-  grid.material.transparent = true;
-  grid.material.opacity = 0.2;
-  group.add(grid);
-  const boundaryGeometry = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-42, 0.56, -28),
-    new THREE.Vector3(42, 0.56, -28),
-    new THREE.Vector3(42, 0.56, 28),
-    new THREE.Vector3(-42, 0.56, 28),
-    new THREE.Vector3(-42, 0.56, -28)
-  ]);
-  group.add(new THREE.Line(boundaryGeometry, new THREE.LineBasicMaterial({ color: 0x58dbff, transparent: true, opacity: 0.52 })));
-  return group;
-}
-
-function buildRainAndGaugeLayer(THREE, mode, live) {
-  const group = new THREE.Group();
-  const cells = [
-    [-28, -12, 8.8, 0x35d9ff],
-    [-12, 6, mode === "warning" ? 12.5 : 9.6, 0xffd35f],
-    [8, -6, live.bridgeClosed ? 13.8 : 10.4, 0xff8b3d],
-    [25, 11, mode === "plan" ? 7.4 : 9.2, 0x5af0b2]
-  ];
-  for (const [x, z, height, color] of cells) {
-    const mesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.1, 1.1, height, 24, 1, true),
-      new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.22, emissive: color, emissiveIntensity: 0.34, side: THREE.DoubleSide })
-    );
-    mesh.position.set(x, height / 2 + 0.8, z);
-    mesh.userData.float = true;
-    mesh.userData.baseY = mesh.position.y;
-    mesh.userData.phase = x * 0.1 + z * 0.2;
-    group.add(mesh);
-    const cap = new THREE.Mesh(
-      new THREE.RingGeometry(1.15, 1.48, 32),
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.72, side: THREE.DoubleSide })
-    );
-    cap.rotation.x = -Math.PI / 2;
-    cap.position.set(x, height + 1.05, z);
-    group.add(cap);
-  }
-  return group;
-}
-
-function buildScanningBeam(THREE, mode) {
-  const group = new THREE.Group();
-  const geometry = new THREE.PlaneGeometry(3.2, 58);
-  const material = new THREE.MeshBasicMaterial({ color: mode === "warning" ? 0xffb252 : 0x38dfff, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false });
-  const beam = new THREE.Mesh(geometry, material);
-  beam.rotation.x = -Math.PI / 2;
-  beam.position.set(-34, 1.08, 0);
-  beam.userData.sweep = true;
-  beam.userData.phase = mode === "simulation" ? 18 : 0;
-  group.add(beam);
-  return group;
-}
-
-function buildPolygonMesh(THREE, points, opacity, elevationAt) {
-  const group = new THREE.Group();
-  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
-  const geometry = new THREE.ShapeGeometry(shape);
-  geometry.rotateX(Math.PI / 2);
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xff7946, transparent: true, opacity, roughness: 0.42, metalness: 0.05, side: THREE.DoubleSide }));
-  mesh.position.y = Math.max(...points.map(([x, z]) => elevationAt(x, z))) + 0.34;
-  mesh.userData.pulse = true;
-  mesh.userData.phase = points.length;
-  group.add(mesh);
-  const y = mesh.position.y + 0.06;
-  const outlinePoints = [...points, points[0]].map(([x, z]) => new THREE.Vector3(x, y, z));
-  const outline = new THREE.Line(new THREE.BufferGeometry().setFromPoints(outlinePoints), new THREE.LineBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0.82 }));
-  outline.userData.pulse = true;
-  outline.userData.phase = points.length + 1;
-  group.add(outline);
-  return group;
-}
-
-function buildTube(THREE, points, elevationAt, radius, color, opacity) {
-  const vectors = points.map(([x, z]) => new THREE.Vector3(x, elevationAt(x, z) + 0.55, z));
-  const curve = new THREE.CatmullRomCurve3(vectors);
-  const geometry = new THREE.TubeGeometry(curve, 48, radius, 8, false);
-  return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, transparent: true, opacity, emissive: color, emissiveIntensity: 0.18, roughness: 0.35 }));
-}
-
-function buildMovingDot(THREE, points, elevationAt, risky) {
-  const path = points.map(([x, z]) => new THREE.Vector3(x, elevationAt(x, z) + 1.15, z));
-  const dot = new THREE.Mesh(new THREE.SphereGeometry(risky ? 0.38 : 0.32, 16, 12), new THREE.MeshStandardMaterial({ color: risky ? 0xffcc5b : 0x6fffe9, emissive: risky ? 0xff8b2b : 0x2df6e7, emissiveIntensity: 0.8 }));
-  dot.userData.movePath = path;
-  dot.userData.phase = Math.random() * 2;
-  return dot;
-}
-
-function buildPlaceMarker(THREE, place, x, y, z, mode) {
-  const group = new THREE.Group();
-  const isCare = place.id.includes("nursing");
-  const isTown = place.id.includes("town");
-  const color = isCare ? 0xc779a5 : isTown ? 0x33d8e7 : 0xffc247;
-  const height = mode === "plan" && isCare ? 3.9 : isTown ? 3.4 : 2.8;
-  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, height, 20), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.22, roughness: 0.38 }));
-  mesh.position.set(x, y + height / 2 + 0.25, z);
-  mesh.userData.beacon = true;
-  mesh.userData.phase = x * 0.03 + z * 0.05;
-  group.add(mesh);
-  const halo = new THREE.Mesh(new THREE.RingGeometry(0.92, 1.22, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.62, side: THREE.DoubleSide }));
-  halo.rotation.x = -Math.PI / 2;
-  halo.position.set(x, y + 0.32, z);
-  group.add(halo);
-  group.add(makeLabelSprite(THREE, place.name, x + 1.1, y + height + 1.1, z));
-  return group;
-}
-
-function buildShelterMarker(THREE, shelter, x, y, z) {
-  const group = new THREE.Group();
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.45, 1.45), new THREE.MeshStandardMaterial({ color: 0x37d58c, emissive: 0x1ccf88, emissiveIntensity: 0.32 }));
-  mesh.position.set(x, y + 1.15, z);
-  group.add(mesh);
-  group.add(makeLabelSprite(THREE, shelter.name, x + 1.3, y + 2.5, z));
-  return group;
-}
-
-function buildBridgeMarker(THREE, bridge, x, y, z, closed) {
-  const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({ color: closed ? 0xff5b45 : 0xc8d3dc, emissive: closed ? 0xff2f1f : 0x4da2bf, emissiveIntensity: 0.28 });
-  for (let i = -1; i <= 1; i += 1) {
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 2.4), material);
-    beam.position.set(x + i * 0.48, y + 0.88, z);
-    group.add(beam);
-  }
-  group.add(makeLabelSprite(THREE, bridge.name, x + 1.1, y + 2.0, z));
-  return group;
-}
-
-function buildCompass(THREE) {
-  const group = new THREE.Group();
-  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.6, 2.4, 4), new THREE.MeshStandardMaterial({ color: 0xeaf6ff, emissive: 0x4dbdff, emissiveIntensity: 0.35 }));
-  cone.rotation.z = Math.PI;
-  cone.position.set(36, 8, -21);
-  group.add(cone);
-  group.add(makeLabelSprite(THREE, "N", 36, 10.2, -21));
-  return group;
-}
-
-function makeLabelSprite(THREE, text, x, y, z) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 420;
-  canvas.height = 96;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "rgba(4, 18, 36, 0.86)";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "rgba(39, 210, 255, 0.16)";
-  ctx.fillRect(0, 0, 8, canvas.height);
-  ctx.strokeStyle = "rgba(91, 210, 255, 0.86)";
-  ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
-  ctx.fillStyle = "#effbff";
-  ctx.font = "700 32px PingFang SC, Microsoft YaHei, sans-serif";
-  ctx.fillText(text, 24, 56);
-  ctx.fillStyle = "rgba(164, 218, 244, 0.86)";
-  ctx.font = "500 16px PingFang SC, Microsoft YaHei, sans-serif";
-  ctx.fillText("人员转移监测对象", 24, 78);
-  const texture = new THREE.CanvasTexture(canvas);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
-  sprite.position.set(x, y, z);
-  sprite.scale.set(8.8, 2.0, 1);
-  sprite.userData.float = true;
-  sprite.userData.baseY = y;
-  sprite.userData.phase = text.length;
-  return sprite;
-}
-
-function commandHud(live, metrics = {}, spatial = {}) {
-  const mode = state.mapMode || "hydrology";
-  const modeLabel = mapModes.find(([id]) => id === mode)?.[1] || "水文预报";
-  const safeRate = Math.round(Number(metrics.safe_before_danger_rate || 0) * 1000) / 10;
-  const harmRisk = Math.round(Number(metrics.vulnerable_harm_risk || 0) * 1000) / 10;
-  const closureRate = Math.round(Number(metrics.response_closure_rate || 0) * 1000) / 10;
-  const queue = Number(metrics.resource_queue_minutes_mean || 0).toFixed(1);
-  const routeCount = spatial.routes?.length || 0;
-  const highRiskRoutes = (spatial.routes || []).filter((route) => route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65).length;
-  const shelterBeds = spatial.coverage?.total_shelter_capacity || spatial.shelters?.reduce((sum, shelter) => sum + Number(shelter.capacity || 0), 0) || 0;
-  const gauges = [
-    ["上游雨强", 68, "mm/h"],
-    ["河道水位", live.bridgeClosed ? 86 : 63, "%"],
-    ["支沟倒灌", live.bridgeClosed ? 78 : 52, "%"],
-    ["床位占用", shelterBeds ? Math.min(100, Math.round((live.shelteredTotal / shelterBeds) * 100)) : 0, "%"]
-  ];
-  const panel = commandModePanel(mode, { live, safeRate, harmRisk, closureRate, queue, routeCount, highRiskRoutes, shelterBeds, gauges });
-  const layerItems = [
-    ["三维地形", "on"],
-    ["河道水位", "on"],
-    ["风险淹没", mode === "hydrology" ? "warn" : "on"],
-    ["转移路线", mode === "simulation" || mode === "plan" ? "on" : "standby"],
-    ["避难承载", mode === "plan" ? "on" : "standby"]
-  ];
-  const commandSteps = [
-    ["预警", live.minute >= state.scenarioConfig.warning_minute],
-    ["叫应", live.minute >= state.scenarioConfig.warning_minute + 5],
-    ["转移", live.minute >= state.scenarioConfig.evacuation_order_minute],
-    ["安置", live.shelteredTotal > 0],
-    ["复盘", closureRate >= 80]
-  ];
-  return `<div class="command-watermark"><span>清源县防汛抗旱指挥部</span><b>${modeLabel}</b></div>
-  <div class="forecast-tabs">
-    ${mapModes.map(([id, label]) => `<button data-map-mode="${id}" class="${mode === id ? "active" : ""}" type="button">${label}</button>`).join("")}
-  </div>
-  <div class="layer-stack" aria-label="专题图层状态">
-    ${layerItems.map(([label, tone]) => `<span class="${tone}"><i></i>${label}</span>`).join("")}
-  </div>
-  <aside class="hud-panel hud-left">
-    <p class="hud-eyebrow">实时监测</p>
-    <h3>${panel.leftTitle}</h3>
-    <div class="hud-kpis">
-      ${panel.kpis.map(([value, label]) => `<span><b>${value}</b><small>${label}</small></span>`).join("")}
-    </div>
-    ${panel.leftBody}
-  </aside>
-  <aside class="hud-panel hud-right">
-    <p class="hud-eyebrow">处置链条</p>
-    <h3>${panel.rightTitle}</h3>
-    <div class="plan-steps">
-      ${panel.steps.map(([text, tone = "done"]) => `<span class="${tone}">${text}</span>`).join("")}
-    </div>
-    <div class="mini-readout">
-      ${panel.readout.map(([value, label]) => `<span><b>${value}</b>${label}</span>`).join("")}
-    </div>
-  </aside>
-  <div class="dispatch-timeline" aria-label="应急处置进度">
-    ${commandSteps.map(([label, done]) => `<span class="${done ? "done" : ""}"><i></i>${label}</span>`).join("")}
-  </div>
-  <div class="hydro-bottom">
-    ${panel.bottom.map(([label, value]) => `<span><i style="width:${value}%"></i><b>${label}</b></span>`).join("")}
-  </div>`;
-}
-
-function commandModePanel(mode, context) {
-  const { live, safeRate, harmRisk, closureRate, queue, routeCount, highRiskRoutes, shelterBeds, gauges } = context;
-  const bars = `<div class="hydro-bars">${gauges.map(([label, value, unit]) => `<label><span>${label}</span><i><em style="height:${value}%"></em></i><b>${value}${unit}</b></label>`).join("")}</div>`;
-  const warningBars = [
-    ["蓝色阈值", 42],
-    ["黄色阈值", 58],
-    ["橙色阈值", 76],
-    ["红色阈值", 91]
-  ];
-  const simulationBars = [
-    ["北谷预转移", 38],
-    ["南谷转移", 72],
-    ["养老中心", 84],
-    ["镇区低洼", 46]
-  ];
-  const planBars = [
-    ["车辆调拨", 76],
-    ["照护人员", 68],
-    ["床位储备", shelterBeds ? Math.min(100, Math.round((800 / Math.max(1, shelterBeds)) * 100)) : 80],
-    ["备用通信", 64]
-  ];
-  if (mode === "warning") {
-    return {
-      leftTitle: "预警设置",
-      kpis: [[`${state.scenarioConfig.warning_minute}′`, "预警发布"], [`${state.scenarioConfig.evacuation_order_minute}′`, "转移命令"], [`${Math.round(Number(state.scenarioConfig.communication_failure_rate || 0) * 100)}%`, "通信失败率"]],
-      leftBody: `<div class="threshold-list">${warningBars.map(([label, value]) => `<span><b>${label}</b><i><em style="width:${value}%"></em></i><strong>${value}%</strong></span>`).join("")}</div>`,
-      rightTitle: "叫应与阈值",
-      steps: [["气象预警触发县级会商"], ["橙色阈值触发养老机构预转移"], ["红色阈值触发南谷强制转移", "warn"], ["通信受损时启用网格员上门"]],
-      readout: [[`${live.commsDegraded ? "备用" : "正常"}`, "通信链路"], [`${state.scenarioConfig.bridge_closure_minute}′`, "桥涵封控"], [`${closureRate}%`, "闭环率"]],
-      bottom: warningBars
-    };
-  }
-  if (mode === "simulation") {
-    return {
-      leftTitle: "模拟预演",
-      kpis: [[`${live.shelteredTotal}`, "已安置"], [`${live.movingTotal}`, "转移中"], [`${live.blockedTotal}`, "受阻对象"]],
-      leftBody: `<div class="threshold-list">${simulationBars.map(([label, value]) => `<span><b>${label}</b><i><em style="width:${value}%"></em></i><strong>${value}%</strong></span>`).join("")}</div>`,
-      rightTitle: "路线推演",
-      steps: [["北谷沿北岸高地路线预转移"], ["南谷经南涵洞至体育馆"], [`养老中心经东桥至学校${live.bridgeClosed ? "，需绕行" : ""}`, live.bridgeClosed ? "warn" : "done"], [`高风险路线 ${highRiskRoutes}/${routeCount}`]],
-      readout: [[`${safeRate}%`, "安全转移"], [`${queue}`, "排队分钟"], [`${live.dangerEta}′`, "危险到达"]],
-      bottom: simulationBars
-    };
-  }
-  if (mode === "plan") {
-    return {
-      leftTitle: "资源编组",
-      kpis: [[`${state.scenarioConfig.vehicles}`, "转运车辆"], [`${state.scenarioConfig.care_workers}`, "照护人员"], [`${shelterBeds}`, "避难床位"]],
-      leftBody: `<div class="threshold-list">${planBars.map(([label, value]) => `<span><b>${label}</b><i><em style="width:${value}%"></em></i><strong>${value}%</strong></span>`).join("")}</div>`,
-      rightTitle: "预案生成",
-      steps: [["养老中心优先转移"], ["南谷涵洞设观察哨", "warn"], ["北谷脆弱人群预转移"], ["学校与体育馆分区接收"]],
-      readout: [[`${highRiskRoutes}/${routeCount}`, "高风险路线"], [`${live.blockedTotal}`, "受阻对象"], [`${queue}`, "排队分钟"]],
-      bottom: planBars
-    };
-  }
-  return {
-    leftTitle: "水文预报",
-    kpis: [[`${live.dangerEta}′`, "危险提前量"], [`${safeRate}%`, "安全转移"], [`${harmRisk}%`, "脆弱风险"]],
-    leftBody: bars,
-    rightTitle: "预案生成",
-    steps: [["蓝黄橙红响应阈值"], [`叫应链路 ${live.commsDegraded ? "备用" : "正常"}`, live.commsDegraded ? "warn" : "done"], [`桥涵状态 ${live.bridgeClosed ? "封控" : "可通行"}`, live.bridgeClosed ? "warn" : "done"], [`高风险路线 ${highRiskRoutes}/${routeCount}`]],
-    readout: [[`${closureRate}%`, "闭环响应"], [`${queue}`, "排队分钟"], [`${live.blockedTotal}`, "受阻对象"]],
-    bottom: gauges
-  };
-}
-
-function hydrateStandardMap() {
-  const panel = $("#terrain-panel");
-  const container = $("#standard-geo-map");
-  if (!panel || !container || !window.L) return;
-  const L = window.L;
-  const spatial = normalizedSpatialMap();
-  const live = liveSpatialState(spatial);
-  const mode = state.mapMode || "hydrology";
-  panel.classList.add("leaflet-ready");
-
-  const map = L.map(container, {
-    zoomControl: true,
-    attributionControl: true,
-    scrollWheelZoom: false
-  });
-  const topo = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 18,
-    attribution: "Tiles &copy; Esri"
-  });
-  const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  });
-  const imagery = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 18,
-    attribution: "Imagery &copy; Esri"
-  });
-  const hillshade = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 18,
-    opacity: 0.42,
-    attribution: "Hillshade &copy; Esri"
-  });
-  imagery.addTo(map);
-  hillshade.addTo(map);
-  L.control.layers({ "卫星影像": imagery, "地形底图": topo, "街道底图": street }, { "地形阴影": hillshade }, { position: "topleft" }).addTo(map);
-
-  const featureBounds = [];
-  const toLatLng = ([lon, lat]) => [lat, lon];
-  const addBounds = (coords) => coords.forEach((coord) => featureBounds.push(toLatLng(coord)));
-
-  for (const zone of spatial.risk_zones) {
-    const latLngs = zone.polygon.map(toLatLng);
-    addBounds(zone.polygon);
-    L.polygon(latLngs, {
-      color: Number(zone.risk_score || 0) >= 0.75 ? "#8f3f2f" : "#b3792e",
-      weight: mode === "warning" || mode === "hydrology" ? 3 : 2,
-      fillColor: Number(zone.risk_score || 0) >= 0.75 ? "#ff7b3d" : "#ffd34f",
-      fillOpacity: mode === "simulation" ? 0.26 : Number(zone.risk_score || 0) >= 0.75 ? 0.5 : 0.36
-    }).bindPopup(`<strong>${escapeHtml(zone.name || zone.id)}</strong><br>风险 ${Math.round(Number(zone.risk_score || 0) * 100)}%`).addTo(map);
-  }
-
-  for (const river of spatial.rivers) {
-    const latLngs = river.coordinates.map(toLatLng);
-    addBounds(river.coordinates);
-    L.polyline(latLngs, {
-      color: river.kind === "tributary_culvert" ? "#28d7ff" : "#17a9ff",
-      weight: mode === "hydrology" ? (river.kind === "tributary_culvert" ? 6 : 11) : (river.kind === "tributary_culvert" ? 5 : 8),
-      opacity: 0.86
-    }).bindPopup(`<strong>${escapeHtml(river.name || river.id)}</strong><br>流向 ${escapeHtml(river.flow_direction || "上游至下游")}`).addTo(map);
-    const end = latLngs[latLngs.length - 1];
-    L.marker(end, {
-      icon: L.divIcon({ className: "flow-arrow-marker", html: "→", iconSize: [22, 22], iconAnchor: [11, 11] })
-    }).addTo(map);
-  }
-
-  for (const route of spatial.routes) {
-    const routeLive = live.routes[route.id] || {};
-    const risky = route.crosses_high_risk || Number(route.bridge_exposure_score || 0) >= 0.65;
-    const closed = routeLive.status === "closed";
-    addBounds(route.coordinates);
-    L.polyline(route.coordinates.map(toLatLng), {
-      color: closed ? "#9a4129" : risky ? "#e09345" : "#e7c95f",
-      weight: mode === "simulation" || mode === "plan" ? (risky ? 7 : 6) : (risky ? 5 : 4),
-      opacity: mode === "hydrology" ? 0.7 : 0.95,
-      dashArray: closed ? "3 8" : risky ? "10 8" : ""
-    }).bindPopup(`<strong>${escapeHtml(route.name || route.id)}</strong><br>${escapeHtml(routeLive.label || "待命")} · ${route.travel_minutes || 0} 分钟`).addTo(map);
-  }
-
-  for (const bridge of spatial.bridges) {
-    const closed = live.bridgeClosed && Number(bridge.risk_score || 0) >= 0.65;
-    const latLng = [bridge.y, bridge.x];
-    featureBounds.push(latLng);
-    L.marker(latLng, {
-      icon: L.divIcon({
-        className: `bridge-marker ${closed ? "closed" : ""}`,
-        html: `<span></span><b>${escapeHtml(bridge.name || bridge.id)}${closed ? " 封闭" : ""}</b>`,
-        iconSize: [86, 24],
-        iconAnchor: [12, 12]
-      })
-    }).bindPopup(`<strong>${escapeHtml(bridge.name || bridge.id)}</strong><br>风险 ${Math.round(Number(bridge.risk_score || 0) * 100)}%`).addTo(map);
-  }
-
-  for (const place of spatial.places) {
-    const placeLive = live.places[place.id] || { sheltered: 0, total: Number(place.population || 0), blocked: 0, progress: 0 };
-    const markerType = place.type || (place.id.includes("town") ? "town" : place.id.includes("nursing") ? "care" : "village");
-    const latLng = [place.y, place.x];
-    featureBounds.push(latLng);
-    L.circleMarker(latLng, {
-      radius: mode === "plan" ? (markerType === "care" ? 11 : 9) : markerType === "town" ? 9 : 8,
-      color: "#ffffff",
-      weight: 2,
-      fillColor: markerType === "care" ? "#9f5f80" : markerType === "town" ? "#1b6b6f" : "#f0b429",
-      fillOpacity: 0.96
-    }).bindTooltip(`${place.name}`, { permanent: true, direction: "right", className: "geo-label" })
-      .bindPopup(`<strong>${escapeHtml(place.name)}</strong><br>定位：${escapeHtml(place.evacuation_role || "标准转移")}<br>风险 ${Math.round(Number(place.risk_score || 0) * 100)}% · 高程 ${place.elevation_m || "-"}m<br>已转 ${placeLive.sheltered}/${placeLive.total || place.population}`)
-      .addTo(map);
-  }
-
-  for (const shelter of spatial.shelters) {
-    const latLng = [shelter.y, shelter.x];
-    featureBounds.push(latLng);
-    L.marker(latLng, {
-      icon: L.divIcon({
-        className: "shelter-marker",
-        html: `<span></span><b>${escapeHtml(shelter.name)}</b>`,
-        iconSize: [170, 28],
-        iconAnchor: [12, 14]
-      })
-    }).bindPopup(`<strong>${escapeHtml(shelter.name)}</strong><br>容量 ${shelter.capacity} · 照护容量 ${shelter.care_capacity || 0}`).addTo(map);
-  }
-
-  if (featureBounds.length) {
-    map.fitBounds(featureBounds, { padding: [32, 32], maxZoom: 14 });
-  } else {
-    map.setView([31.25, 121.39], 12);
-  }
-}
-
-function normalizedSpatialMap() {
-  return normalizedSpatialMapFrom(state.spatialPackage || fallbackSpatialMap);
-}
-
-function normalizedSpatialMapFrom(source) {
-  const fallbackRiskById = Object.fromEntries((fallbackSpatialMap.risk_zones || []).map((zone) => [zone.id, zone]));
-  const fallbackRouteById = Object.fromEntries((fallbackSpatialMap.routes || []).map((route) => [route.id, route]));
-  const places = (source.places || fallbackSpatialMap.places).map((place) => ({
-    type: place.type || (place.id?.includes("town") ? "town" : place.id?.includes("nursing") ? "care" : "village"),
-    ...place
-  }));
-  const shelters = source.shelters || fallbackSpatialMap.shelters;
-  const rivers = (source.rivers || fallbackSpatialMap.rivers).map((river) => ({ ...river, coordinates: river.coordinates || [] })).filter((river) => river.coordinates.length >= 2);
-  const placeById = Object.fromEntries(places.map((place) => [place.id, place]));
-  const shelterById = Object.fromEntries(shelters.map((shelter) => [shelter.id, shelter]));
-  const risk_zones = (source.risk_zones || fallbackSpatialMap.risk_zones).map((zone) => {
-    const fallback = fallbackRiskById[zone.id] || {};
-    const geometry = zone.geometry || fallback.geometry;
-    const polygon = zone.polygon || geometry?.coordinates?.[0] || fallback.polygon || [];
-    return { ...fallback, ...zone, polygon };
-  }).filter((zone) => zone.polygon?.length);
-  const routes = (source.routes || fallbackSpatialMap.routes).map((route) => {
-    const fallback = fallbackRouteById[route.id] || {};
-    const origin = placeById[route.origin_id] || placeById[fallback.origin_id];
-    const shelter = shelterById[route.shelter_id] || shelterById[fallback.shelter_id];
-    const coordinates = route.coordinates || fallback.coordinates || (origin && shelter ? [[origin.x, origin.y], [shelter.x, shelter.y]] : []);
-    return { ...fallback, ...route, coordinates, name: route.name || `${origin?.name || route.origin_id}-${shelter?.name || route.shelter_id}` };
-  }).filter((route) => route.coordinates?.length >= 2);
-  return { ...fallbackSpatialMap, ...source, places, shelters, rivers, risk_zones, routes };
-}
-
-function liveSpatialState(spatial) {
-  const agents = state.run?.agents || [];
-  const events = state.run?.events || [];
-  const scenario = state.run?.scenario_config || state.scenarioConfig;
-  const minute = Math.max(0, ...events.map((event) => Number(event.minute || 0)));
-  const dangerMinute = Number(scenario.danger_arrival_minute || 0);
-  const bridgeMinute = Number(scenario.bridge_closure_minute || 0);
-  const commMinute = Number(scenario.communication_failure_minute || 0);
-  const bridgeClosed = events.some((event) => String(event.message || "").includes("bridge_east closed")) || (bridgeMinute > 0 && minute >= bridgeMinute);
-  const commsDegraded = events.some((event) => String(event.message || "").includes("communications degraded")) || (commMinute > 0 && minute >= commMinute);
-  const places = Object.fromEntries(spatial.places.map((place) => [place.id, { total: 0, sheltered: 0, blocked: 0, moving: 0, progress: 0 }]));
-  for (const agent of agents) {
-    const bucket = places[agent.location_id];
-    if (!bucket) continue;
-    bucket.total += 1;
-    const status = String(agent.status || "");
-    if (status.includes("sheltered")) bucket.sheltered += 1;
-    else if (status.includes("blocked") || status.includes("unreachable") || status.includes("waiting")) bucket.blocked += 1;
-    else if (status.includes("evac") || status.includes("transfer") || status.includes("confirmed")) bucket.moving += 1;
-  }
-  for (const place of spatial.places) {
-    const bucket = places[place.id];
-    if (!bucket.total) bucket.total = Number(place.population || 0);
-    bucket.progress = bucket.total ? bucket.sheltered / bucket.total : 0;
-  }
-  const routes = Object.fromEntries(spatial.routes.map((route) => {
-    const closed = bridgeClosed && (route.bridge_exposure_score >= 0.65 || route.crosses_high_risk);
-    const active = minute >= Number(scenario.evacuation_order_minute || 0) && !closed;
-    const label = closed ? "封闭/绕行" : active ? "转移中" : "待命";
-    return [route.id, { status: closed ? "closed" : active ? "active" : "standby", label }];
-  }));
-  const shelteredTotal = agents.filter((agent) => String(agent.status || "").includes("sheltered")).length;
-  const blockedTotal = agents.filter((agent) => String(agent.status || "").includes("blocked") || String(agent.reason || "").includes("资源")).length;
-  const movingTotal = Math.max(0, agents.filter((agent) => String(agent.status || "").includes("evac") || String(agent.status || "").includes("confirmed")).length);
-  return {
-    minute,
-    dangerEta: dangerMinute ? Math.max(0, dangerMinute - minute) : 0,
-    bridgeClosed,
-    commsDegraded,
-    places,
-    routes,
-    shelteredTotal,
-    blockedTotal,
-    movingTotal
-  };
-}
-
-function riskLevel(score) {
-  const value = Number(score || 0);
-  if (value >= 0.75) return "high";
-  if (value >= 0.45) return "medium";
-  return "low";
-}
-
-function mapBounds(spatial) {
-  const coords = [
-    ...spatial.places.map((item) => [item.x, item.y]),
-    ...spatial.shelters.map((item) => [item.x, item.y]),
-    ...spatial.bridges.map((item) => [item.x, item.y]),
-    ...spatial.rivers.flatMap((item) => item.coordinates),
-    ...spatial.risk_zones.flatMap((item) => item.polygon),
-    ...spatial.routes.flatMap((item) => item.coordinates)
-  ];
-  const lons = coords.map(([lon]) => lon);
-  const lats = coords.map(([, lat]) => lat);
-  return {
-    minLon: Math.min(...lons) - 0.015,
-    maxLon: Math.max(...lons) + 0.015,
-    minLat: Math.min(...lats) - 0.015,
-    maxLat: Math.max(...lats) + 0.015
-  };
-}
-
-function terrainContours() {
-  const lines = [
-    "M18 492 C156 430 194 340 318 332 C488 320 588 234 744 212 C870 194 942 226 1012 282",
-    "M30 430 C160 378 228 292 346 294 C482 296 560 208 720 168 C842 136 930 152 1018 210",
-    "M-10 368 C118 330 220 252 342 260 C486 268 590 186 744 134 C856 96 940 104 1022 158",
-    "M12 306 C132 290 220 210 360 218 C520 228 628 154 760 100 C850 62 934 62 1020 112",
-    "M65 548 C190 502 310 432 462 438 C606 444 716 394 848 350 C922 326 980 328 1028 360",
-    "M110 588 C235 548 338 496 474 500 C640 506 740 456 890 420"
-  ];
-  return lines.map((d, index) => `<path class="contour contour-${index % 3}" d="${d}"></path>`).join("");
-}
-
 function editor() {
   const sub = state.editorSub || "params";
   return `<div class="view">
@@ -1475,7 +659,7 @@ function editorParams() {
   const cfg = state.scenarioConfig;
   return `<section><h2>合成县域设定</h2><div class="form-grid">
       <label>案例模板<input value="${escapeHtml(selected?.case_id || "未选择")}" readonly /></label>
-      <label>训练来源<input value="应急管理部报告" readonly /></label>
+      <label>证据来源<input value="应急管理部报告" readonly /></label>
       <label>脆弱人口比例<span class="live-value" data-config-value="vulnerable_ratio">${Math.round(Number(cfg.vulnerable_ratio) * 100)}%</span><input data-config-key="vulnerable_ratio" value="${escapeHtml(cfg.vulnerable_ratio)}" min="0.05" max="0.85" step="0.01" type="range" /></label>
       <label>关键断点<input data-config-key="key_breakpoints" value="${escapeHtml(cfg.key_breakpoints || "预警-响应联动触发阈值")}" /></label>
       <label>时间步长<select data-config-key="timestep_minutes">
@@ -1487,10 +671,10 @@ function editorParams() {
       <label>危险到达<input data-config-key="danger_arrival_minute" value="${escapeHtml(cfg.danger_arrival_minute)}" min="60" max="360" step="5" type="number" /></label>
       <label>桥梁封闭<input data-config-key="bridge_closure_minute" value="${escapeHtml(cfg.bridge_closure_minute)}" min="0" max="360" step="5" type="number" /></label>
       <label>通信失败率<span class="live-value" data-config-value="communication_failure_rate">${Math.round(Number(cfg.communication_failure_rate) * 100)}%</span><input data-config-key="communication_failure_rate" value="${escapeHtml(cfg.communication_failure_rate)}" min="0" max="0.95" step="0.05" type="range" /></label>
-      <label>转运车辆<input data-config-key="vehicles" value="${escapeHtml(cfg.vehicles)}" min="1" max="300" step="1" type="number" /></label>
-      <label>照护人员<input data-config-key="care_workers" value="${escapeHtml(cfg.care_workers)}" min="1" max="300" step="1" type="number" /></label>
-      <label>担架数量<input data-config-key="stretchers" value="${escapeHtml(cfg.stretchers)}" min="1" max="300" step="1" type="number" /></label>
-      <label>避难床位<input data-config-key="shelter_beds" value="${escapeHtml(cfg.shelter_beds)}" min="50" max="5000" step="10" type="number" /></label>
+      <label>转运车辆<input data-config-key="vehicles" value="${escapeHtml(cfg.vehicles)}" min="0" max="300" step="1" type="number" /></label>
+      <label>照护人员<input data-config-key="care_workers" value="${escapeHtml(cfg.care_workers)}" min="0" max="300" step="1" type="number" /></label>
+      <label>担架数量<input data-config-key="stretchers" value="${escapeHtml(cfg.stretchers)}" min="0" max="300" step="1" type="number" /></label>
+      <label>避难床位<input data-config-key="shelter_beds" value="${escapeHtml(cfg.shelter_beds)}" min="0" max="5000" step="10" type="number" /></label>
     </div></section>`;
 }
 
@@ -1498,7 +682,7 @@ function editorCases() {
   const selected = state.selectedCase;
   const scenario = state.caseScenario;
   const cases = state.cases.length ? state.cases : [];
-  return `<section><h2>真实案例训练库</h2>
+  return `<section><h2>灾害治理证据库</h2>
     <div class="case-tools">
       <label>检索案例<input id="case-search" value="" placeholder="养老、桥梁、工地、郑州..." /></label>
       <span>${cases.length} 个候选案例</span>
@@ -1531,17 +715,7 @@ function editorCases() {
     </section>`;
 }
 
-function timeline() {
-  const events = (state.run?.events || []).slice(-12);
-  const rows = events.length ? events : [{ minute: 0, kind: "ready", message: "请先在主页运行一次仿真，事件流会在这里显示。" }];
-  return `<div class="view"><section><h2>事件流</h2><p class="section-note">每张卡片表示一次仿真事件：左上角是发生时间，标题是事件类型，正文是具体动作。这里展示的是最新一次运行的末尾事件。</p></section>
-    <div class="timeline">${rows.map((event) => eventCard(event)).join("")}</div>
-    <section class="metric-grid compact">
-      ${metric("漏管关键动作", pct(state.run?.metrics?.missed_critical_action_rate), "warn")}
-      ${metric("信任变化", num(state.run?.metrics?.trust_delta))}
-      ${metric("群体缺口", num(state.run?.metrics?.group_safety_gap), "neutral")}
-    </section></div>`;
-}
+function timeline() { return workbench.timeline(); }
 
 function eventCard(event) {
   const kind = event.kind || event.event_type || "event";
@@ -1574,12 +748,7 @@ function eventMessageLabel(message) {
   }[message] || message;
 }
 
-function callDesk() {
-  const agents = (state.run?.agents || []).filter((agent) => agent.is_vulnerable).slice(0, 12);
-  return `<div class="view"><section><table><thead><tr><th>对象</th><th>位置</th><th>状态</th><th>风险</th><th>原因</th></tr></thead><tbody>
-    ${agents.map((agent) => `<tr><td>${escapeHtml(agent.id)}</td><td>${escapeHtml(agent.location_id)}</td><td><span class="status ${String(agent.status).includes("blocked") ? "blocked" : String(agent.status).includes("sheltered") ? "done" : ""}">${escapeHtml(agent.status)}</span></td><td>${num(agent.harm_risk)}</td><td>${escapeHtml(agent.reason)}</td></tr>`).join("")}
-    </tbody></table></section></div>`;
-}
+function callDesk() { return workbench.callDesk(); }
 
 function metricMean(policy, metricName) {
   if (state.experiment?.experiments) {
@@ -1593,12 +762,7 @@ function metricMean(policy, metricName) {
   return entry && typeof entry === "object" ? Number(entry.mean) : undefined;
 }
 
-function comparison() {
-  const notes = state.experiment?.experiments ? Object.values(state.experiment.experiments).flatMap((item) => item.interpretation) : [];
-  return `<div class="view"><div class="toolbar"><button class="primary" id="run-experiment">运行 A/B/C 实验</button></div>
-    <section class="comparison">${policies.map(([id, name]) => `<div class="policy-card"><strong>${id}</strong><span>${name}</span><b>${pct(metricMean(id, "safe_before_danger_rate"))}</b><small>${state.experiment?.experiments ? "A/B/C 综合安全转移率" : "安全转移率均值"}</small></div>`).join("")}</section>
-    <section class="notes">${notes.length ? notes.map((note) => `<p>${escapeHtml(note)}</p>`).join("") : "<p>运行批量实验后显示策略差异、区间和断点解释。</p>"}</section></div>`;
-}
+function comparison() { return workbench.comparison(); }
 
 function decisionLab() {
   const mdp = state.mdp;
@@ -1608,7 +772,7 @@ function decisionLab() {
     <div class="toolbar">
       <button id="load-mdp">查看 MDP/POMDP 定义</button>
       <button class="primary" id="run-optimization">运行参数优化</button>
-      <button id="run-bandit">运行 Contextual Bandit</button>
+      <button id="run-bandit">比较候选动作</button>
     </div>
     <section class="decision-grid">
       <div class="decision-card">
@@ -1634,7 +798,7 @@ function decisionLab() {
         ${best ? optimizationSummary(best) : "<p>运行参数优化后，这里会显示可解释的最优组合。每个候选组合都会调用仿真内核实际运行。</p>"}
       </div>
       <div class="decision-card">
-        <h2>高级 RL 推荐</h2>
+        <h2>候选动作比较</h2>
         ${recommended ? banditSummary(recommended) : "<p>Contextual Bandit 会比较“提前预警、加车、养老院优先、备用通信、桥涵绕行”等动作臂。</p>"}
       </div>
     </section>
@@ -1653,7 +817,7 @@ function optimizationSummary(best) {
   return `<div class="decision-result">
     ${row("综合奖励", best.aggregate_reward)}
     ${row("安全转移率", pct(m.safe_before_danger_rate))}
-    ${row("脆弱风险", pct(m.vulnerable_harm_risk))}
+    ${row("暴露风险指数", num(m.vulnerable_harm_risk))}
     ${row("群体公平缺口", num(m.group_safety_gap))}
     ${row("排队分钟", num(m.resource_queue_minutes_mean))}
     <div class="tag-band policy-tags">
@@ -1673,36 +837,17 @@ function banditSummary(recommended) {
     ${row("推荐动作", recommended.action)}
     ${row("期望奖励", recommended.expected_reward)}
     ${row("安全转移率", pct(m.safe_before_danger_rate))}
-    ${row("脆弱风险", pct(m.vulnerable_harm_risk))}
+    ${row("暴露风险指数", num(m.vulnerable_harm_risk))}
     ${row("排队分钟", num(m.resource_queue_minutes_mean))}
     ${Object.keys(recommended.constraints || {}).length ? `<p class="warning-text">约束惩罚：${escapeHtml(JSON.stringify(recommended.constraints))}</p>` : "<p class=\"ok-text\">推荐动作满足当前硬约束。</p>"}
   </div>`;
 }
 
-function explanation() {
-  const traces = Array.isArray(state.trace?.traces) ? state.trace.traces : [];
-  const events = (state.run?.events || []).slice(-12);
-  return `<div class="view two"><section><h2>个体决策轨迹</h2>${traces.map((item) => `<div class="trace"><strong>${escapeHtml(item.minute)} 分钟 · ${escapeHtml(item.action)}</strong><p>${escapeHtml(item.reason)}</p></div>`).join("") || "<p>运行后显示首个脆弱个体轨迹。</p>"}</section>
-    <section><h2>事件记录</h2>${events.map((item) => eventCard(item)).join("") || "<p>运行后显示事件记录。</p>"}</section></div>`;
-}
+function explanation() { return workbench.explanation(); }
 
-function review() {
-  const m = state.run?.metrics || {};
-  const selected = state.run?.case_context || state.selectedCase;
-  const uplift = metricMean("S5", "safe_before_danger_rate") !== undefined && metricMean("S0", "safe_before_danger_rate") !== undefined
-    ? pct(Math.max(0, metricMean("S5", "safe_before_danger_rate") - metricMean("S0", "safe_before_danger_rate")))
-    : "待实验";
-  return `<div class="view two"><section><h2>策略建议</h2>
-    <p>当前训练案例：${escapeHtml(selected?.case_name || "未选择")}。</p>
-    <p>当前 ${escapeHtml(state.run?.run?.policy_id || "-")} 安全转移率为 ${pct(m.safe_before_danger_rate)}，脆弱群体风险为 ${pct(m.vulnerable_harm_risk)}。</p>
-    <p>批量实验中 S5 相比 S0 的安全转移率均值提升：${uplift}。</p>
-    <p>优先动作：${escapeHtml(state.scenarioConfig.key_breakpoints || (selected?.intervention_points || ["提前预警", "脆弱户逐户确认", "车辆与照护资源联动调度", "桥路断点预案同步更新"]).join("、"))}。</p>
-    </section><section><h2>交付状态</h2>
-    ${row("数据标签", "FACT / SYNTHETIC / SIMULATED")}
-    ${row("外部模型密钥", "不需要")}
-    ${row("核心内核", "规则智能体 + 多层网络 + 资源调度")}
-    ${row("输出", "JSON 指标、事件、个体轨迹、实验比较")}
-    </section></div>`;
-}
+function review() { return workbench.review(); }
+
+const sandbox = createSandbox({state,render,request,setNotice,runSimulation,escapeHtml});
+const workbench = createWorkbench({state, request, render, setNotice, escapeHtml, pct, num});
 
 init();

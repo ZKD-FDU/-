@@ -24,6 +24,7 @@ select {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 260px 1fr;
+  transition: grid-template-columns 0.2s ease;
 }
 
 .sidebar {
@@ -33,6 +34,7 @@ select {
   display: flex;
   flex-direction: column;
   gap: 22px;
+  overflow: hidden;
 }
 
 .brand {
@@ -40,6 +42,76 @@ select {
   align-items: center;
   gap: 12px;
   padding: 8px;
+}
+
+.nav-toggle {
+  flex: none;
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #344b52;
+  border-radius: 6px;
+  background: transparent;
+  color: #bdc9c9;
+  cursor: pointer;
+}
+
+.nav-toggle::before {
+  content: "«";
+  font-size: 17px;
+  line-height: 1;
+}
+
+.nav-toggle:hover {
+  background: #284048;
+  color: #ffffff;
+}
+
+/* 折叠态：侧栏收成窄轨，导航只留单字缩写，hover 由 title 提示全名。 */
+.shell.nav-collapsed {
+  grid-template-columns: 68px 1fr;
+}
+
+.shell.nav-collapsed .sidebar {
+  padding: 22px 10px;
+}
+
+.shell.nav-collapsed .brand {
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.shell.nav-collapsed .brand-text,
+.shell.nav-collapsed .health span:last-child {
+  display: none;
+}
+
+.shell.nav-collapsed .nav-toggle {
+  margin-left: 0;
+}
+
+.shell.nav-collapsed .nav-toggle::before {
+  content: "»";
+}
+
+.shell.nav-collapsed nav button {
+  padding: 11px 0;
+  text-align: center;
+  font-size: 0;
+}
+
+.shell.nav-collapsed nav button::before {
+  content: attr(data-short);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.shell.nav-collapsed .health {
+  justify-content: center;
+  padding: 10px 0;
 }
 
 .brand strong {
@@ -714,33 +786,34 @@ section {
 .hud-panel,
 .hydro-bottom,
 .layer-stack,
-.dispatch-timeline,
-.command-watermark {
+.dispatch-timeline {
   position: absolute;
   z-index: 420;
   backdrop-filter: blur(12px);
 }
 
-.command-watermark {
-  left: 18px;
-  top: 16px;
-  display: grid;
-  gap: 2px;
-  color: #b9d8ed;
-  text-transform: uppercase;
+/* 「隐藏面板」只收起读数类悬浮层，保留页签与图层开关，方便纯净查看三维场景。 */
+.command-map-frame.hud-off .hud-panel,
+.command-map-frame.hud-off .hydro-bottom,
+.command-map-frame.hud-off .dispatch-timeline {
+  display: none;
 }
 
-.command-watermark span {
-  color: rgba(213, 238, 255, 0.76);
+.hud-toggle {
+  border: 1px solid rgba(91, 174, 255, 0.4);
+  border-radius: 6px;
+  background: rgba(9, 38, 66, 0.6);
+  color: #cfe8ff;
+  padding: 4px 10px;
   font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
 }
 
-.command-watermark b {
+.hud-toggle:hover,
+.hud-toggle.active {
+  background: #2d7bd5;
   color: #ffffff;
-  font-size: 24px;
-  letter-spacing: 0;
-  text-shadow: 0 0 18px rgba(80, 233, 255, 0.5);
 }
 
 .forecast-tabs {
@@ -783,8 +856,12 @@ section {
 }
 
 .hud-panel {
-  top: 94px;
-  width: 284px;
+  top: 72px;
+  width: 268px;
+  /* 上边距 72 + 底部控件区 150，保证面板永远压不到图层开关和进度条上。 */
+  max-height: calc(100% - 222px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid rgba(91, 210, 255, 0.38);
   background:
     linear-gradient(180deg, rgba(6, 28, 52, 0.93), rgba(8, 44, 75, 0.76)),
@@ -793,6 +870,64 @@ section {
   box-shadow: inset 0 0 0 1px rgba(137, 203, 255, 0.12), 0 20px 45px rgba(0, 0, 0, 0.34);
   padding: 15px;
   clip-path: polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px));
+}
+
+.hud-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hud-panel::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(91, 174, 255, 0.4);
+}
+
+.hud-panel.collapsed {
+  max-height: none;
+  overflow: visible;
+}
+
+.hud-panel.collapsed .hud-body {
+  display: none;
+}
+
+.hud-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.hud-head > div {
+  min-width: 0;
+}
+
+.hud-fold {
+  flex: none;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(91, 174, 255, 0.42);
+  border-radius: 5px;
+  background: rgba(6, 30, 55, 0.7);
+  color: #9fd4f5;
+  cursor: pointer;
+}
+
+.hud-fold::before {
+  content: "–";
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.hud-panel.collapsed .hud-fold::before {
+  content: "+";
+}
+
+.hud-fold:hover {
+  background: #2d7bd5;
+  color: #ffffff;
 }
 
 .hud-left {
@@ -807,6 +942,10 @@ section {
   margin: 0 0 13px;
   font-size: 18px;
   color: #ffffff;
+}
+
+.hud-panel.collapsed h3 {
+  margin-bottom: 0;
 }
 
 .hud-eyebrow {
@@ -940,24 +1079,32 @@ section {
   border-top: 1px solid rgba(91, 174, 255, 0.24);
 }
 
+/* 图层开关改为横排，让出整个左侧，不再与左侧 HUD 面板抢垂直空间。 */
 .layer-stack {
   left: 18px;
   bottom: 86px;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  width: 178px;
+  max-width: calc(100% - 36px);
 }
 
-.layer-stack span {
+.layer-stack button {
   display: flex;
   align-items: center;
   gap: 8px;
   border: 1px solid rgba(91, 174, 255, 0.28);
   background: rgba(5, 25, 47, 0.68);
   color: #d9f1ff;
-  padding: 7px 9px;
+  padding: 7px 11px;
   font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.layer-stack button:hover {
+  border-color: rgba(91, 210, 255, 0.72);
+  background: rgba(14, 52, 88, 0.82);
 }
 
 .layer-stack i {
@@ -968,18 +1115,28 @@ section {
   box-shadow: 0 0 12px rgba(72, 219, 180, 0.75);
 }
 
-.layer-stack .warn i {
-  background: #ffbf5a;
-  box-shadow: 0 0 12px rgba(255, 191, 90, 0.8);
+.layer-stack .off {
+  color: #7e97aa;
+  border-color: rgba(91, 174, 255, 0.16);
+  background: rgba(5, 18, 33, 0.6);
+  text-decoration: line-through;
 }
 
-.layer-stack .standby {
-  color: #8caac0;
-}
-
-.layer-stack .standby i {
-  background: #627b8d;
+.layer-stack .off i {
+  background: #4a5f6f;
   box-shadow: none;
+}
+
+/* SVG 降级图上的同名图层，随开关一起隐藏。 */
+.terrain-panel.layer-off-water .river,
+.terrain-panel.layer-off-flood .risk-zone,
+.terrain-panel.layer-off-routes .map-road,
+.terrain-panel.layer-off-routes .map-bridge,
+.terrain-panel.layer-off-shelter .map-point,
+.terrain-panel.layer-off-terrain .contour,
+.terrain-panel.layer-off-terrain .terrain-hillshade,
+.terrain-panel.layer-off-terrain .north-arrow {
+  display: none;
 }
 
 .dispatch-timeline {
@@ -1735,16 +1892,12 @@ th {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .command-watermark {
-    top: 88px;
-    left: 12px;
-  }
-
   .layer-stack {
-    top: 158px;
+    top: 118px;
     bottom: auto;
     left: 12px;
-    width: 160px;
+    right: 12px;
+    max-width: none;
   }
 
   .dispatch-timeline {
@@ -1757,6 +1910,7 @@ th {
     top: auto;
     width: calc(50% - 18px);
     bottom: 160px;
+    max-height: calc(100% - 400px);
   }
 
   .hud-left {
@@ -1823,16 +1977,26 @@ th {
     grid-template-columns: 1fr;
   }
 
-  .command-watermark,
-  .layer-stack,
   .dispatch-timeline {
     display: none;
+  }
+
+  /* 图层开关是功能控件，窄屏保留，缩成紧凑一排贴在页签下方。 */
+  .layer-stack {
+    top: 108px;
+    gap: 6px;
+  }
+
+  .layer-stack button {
+    padding: 5px 8px;
+    font-size: 11px;
   }
 
   .hud-panel {
     left: 12px;
     right: 12px;
     width: auto;
+    max-height: 200px;
   }
 
   .hud-left {

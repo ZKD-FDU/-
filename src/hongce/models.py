@@ -273,6 +273,7 @@ class DecisionTrace(BaseModel):
     prompt_version: str | None = None
     sampled_probability: float | None = Field(default=None, ge=0.0, le=1.0)
     random_draw: float | None = Field(default=None, ge=0.0, le=1.0)
+    reason: str = ""
 
 
 class PolicyId(str, Enum):
@@ -305,6 +306,14 @@ class PolicyConfig(BaseModel):
     preposition_care_resources: bool = False
     pre_disaster_maintenance: dict[str, float] = Field(default_factory=dict)
     budget_units: float = Field(default=0.0, ge=0.0)
+    registry_coverage: float = Field(default=0.82, ge=0, le=1)
+    vehicle_multiplier: float = Field(default=1.0, ge=0, le=3)
+    care_multiplier: float = Field(default=1.0, ge=0, le=3)
+    bridge_extension_minutes: int = Field(default=0, ge=0, le=120)
+    institution_self_authorization: bool = False
+    network_enabled: bool = True
+    cadre_workers_per_location: int = Field(default=1, ge=0, le=20)
+    confirmation_deadline_minutes: int = Field(default=15, ge=1)
 
     @computed_field
     @property
@@ -330,8 +339,21 @@ class MetricRecord(BaseModel):
     group_safety_gap: float
     incremental_cost_per_safe_transfer: float | None = None
     worst_case_regret: float | None = None
-    trust_delta: float = 0.0
+    trust_delta: float | None = None
     resource_queue_minutes_mean: float = Field(default=0.0, ge=0.0)
+    vulnerable_safe_before_danger_rate: float | None = None
+    general_safe_before_danger_rate: float | None = None
+    target_count: int = 0
+    safe_count: int = 0
+    vulnerable_target_count: int = 0
+    vulnerable_safe_count: int = 0
+    general_target_count: int = 0
+    general_safe_count: int = 0
+    confirmed_count: int = 0
+    required_action_count: int = 0
+    missed_action_count: int = 0
+    policy_cost: float = 0
+    group_safety_gap_defined: bool = True
 
 
 class SimulationRun(BaseModel):
@@ -371,6 +393,7 @@ MVP_POLICY_CONFIGS: dict[PolicyId, PolicyConfig] = {
         preposition_care_resources=False,
         pre_disaster_maintenance={"bridge_reinforcement": 1.0, "levee_repair": 1.0},
         budget_units=150.0,
+        bridge_extension_minutes=35,
     ),
     PolicyId.S2: PolicyConfig(
         id=PolicyId.S2,
@@ -382,6 +405,7 @@ MVP_POLICY_CONFIGS: dict[PolicyId, PolicyConfig] = {
         preposition_care_resources=False,
         pre_disaster_maintenance={"routine_inspection": 1.0},
         budget_units=120.0,
+        registry_coverage=0.84,
     ),
     PolicyId.S3: PolicyConfig(
         id=PolicyId.S3,
@@ -393,6 +417,10 @@ MVP_POLICY_CONFIGS: dict[PolicyId, PolicyConfig] = {
         preposition_care_resources=True,
         pre_disaster_maintenance={"routine_inspection": 1.0},
         budget_units=125.0,
+        registry_coverage=0.96,
+        vehicle_multiplier=1.18,
+        care_multiplier=1.40,
+        institution_self_authorization=True,
     ),
     PolicyId.S4: PolicyConfig(
         id=PolicyId.S4,
@@ -404,6 +432,9 @@ MVP_POLICY_CONFIGS: dict[PolicyId, PolicyConfig] = {
         preposition_care_resources=False,
         pre_disaster_maintenance={"communications_backup": 1.0, "routine_inspection": 1.0},
         budget_units=125.0,
+        registry_coverage=0.94,
+        institution_self_authorization=True,
+        cadre_workers_per_location=2,
     ),
     PolicyId.S5: PolicyConfig(
         id=PolicyId.S5,
@@ -425,6 +456,12 @@ MVP_POLICY_CONFIGS: dict[PolicyId, PolicyConfig] = {
             "routine_inspection": 1.0,
         },
         budget_units=150.0,
+        registry_coverage=0.985,
+        vehicle_multiplier=1.25,
+        care_multiplier=1.55,
+        bridge_extension_minutes=45,
+        institution_self_authorization=True,
+        cadre_workers_per_location=2,
     ),
 }
 

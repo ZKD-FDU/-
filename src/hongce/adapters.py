@@ -54,8 +54,8 @@ class RuleBasedAgentAdapter:
     def decide(self, context: DecisionContext, policy: PolicyConfig) -> AgentDecision:
         lead = max(0, context.danger_arrival_minute - context.minute) / max(1, context.danger_arrival_minute)
         confirmation = 0.18 if policy.confirmation_required else 0.0
-        assisted_transfer = 0.15 if policy.dispatch_rule.value in {"vulnerable_first", "integrated_resilience"} else 0.0
-        route_penalty = 0.10 if policy.id == PolicyId.S0 and context.mobility != "independent" else 0.0
+        assisted_transfer = 0.15 if policy.preposition_care_resources else 0.0
+        route_penalty = 0.10 if not policy.preposition_care_resources and context.mobility != "independent" else 0.0
         factors = {
             "risk_perception": 1.55 * context.risk_perception,
             "official_trust": 0.75 * context.official_trust,

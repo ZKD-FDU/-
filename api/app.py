@@ -25,6 +25,11 @@ def health() -> dict[str, Any]:
     return service.health()
 
 
+@app.get('/validation/latest')
+def latest_validation() -> dict[str, Any]:
+    return service.latest_validation()
+
+
 @app.get("/cases")
 def list_cases(
     q: str = "",

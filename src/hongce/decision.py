@@ -17,6 +17,7 @@ from typing import Any, Iterable, Literal
 from .engine import RunResult, run_policy
 from .models import PolicyId
 from .scenario import HazardConfig, ResourceProfile, SyntheticScenario, generate_qingyuan
+from .configuration import build_scenario, normalize_scenario_config
 
 
 @dataclass(frozen=True)
@@ -61,9 +62,10 @@ class PolicyParameterCandidate:
         order = max(warning, danger - self.order_lead_minutes)
         config["warning_minute"] = warning
         config["evacuation_order_minute"] = min(order, danger - 5)
-        config["vehicles"] = max(1, round(int(base["vehicles"]) * self.vehicle_multiplier))
-        config["care_workers"] = max(1, round(int(base["care_workers"]) * (1.0 + 0.25 * self.vulnerable_priority_weight)))
-        config["stretchers"] = max(1, round(int(base["stretchers"]) * (1.0 + 0.18 * self.vulnerable_priority_weight)))
+        config["vehicles"] = max(0, round(int(base["vehicles"]) * self.vehicle_multiplier))
+        config["care_workers"] = max(0, round(int(base["care_workers"]) * (1.0 + 0.25 * self.vulnerable_priority_weight)))
+        config["stretchers"] = max(0, round(int(base["stretchers"]) * (1.0 + 0.18 * self.vulnerable_priority_weight)))
+        config['communication_failure_minute'] = max(config['warning_minute'], int(base['communication_failure_minute']))
         config["communication_failure_rate"] = round(
             max(0.0, float(base["communication_failure_rate"]) * (1.0 - self.communication_repair_strength)),
             3,
@@ -131,7 +133,7 @@ def default_mdp_definition() -> MDPDefinition:
             "resource_queue_minutes_mean": -0.012,
             "group_safety_gap_abs": -1.4,
             "missed_critical_action_rate": -1.1,
-            "trust_delta": 0.35,
+            "policy_cost": -0.005,
         },
         transition_source="hongce.engine.run_policy actual multi-agent simulation",
         constraints={
@@ -158,7 +160,7 @@ def evaluate_reward(metrics: dict[str, Any], definition: MDPDefinition | None = 
         "resource_queue_minutes_mean": float(metrics.get("resource_queue_minutes_mean", 0.0)),
         "group_safety_gap_abs": abs(float(metrics.get("group_safety_gap", 0.0))),
         "missed_critical_action_rate": float(metrics.get("missed_critical_action_rate", 0.0)),
-        "trust_delta": float(metrics.get("trust_delta", 0.0)),
+        "policy_cost": float(metrics.get("policy_cost") or 0),
     }
     reward = sum(terms[name] * definition.reward_terms[name] for name in definition.reward_terms)
     violations = constraint_violations(metrics, definition)
@@ -199,14 +201,19 @@ def optimize_policy_parameters(
     method: Literal["grid", "random"] = "grid",
     max_candidates: int = 24,
     scenario_overrides: dict[str, Any] | None = None,
+    explicit_candidates: list[PolicyParameterCandidate] | None = None,
 ) -> dict[str, Any]:
     seeds = seeds or [202608060, 202608061, 202608062]
     base_config = {**DEFAULT_SCENARIO_CONFIG, **(scenario_overrides or {})}
-    candidates = list(candidate_grid(base_config))
+    candidates = explicit_candidates or list(candidate_grid(base_config))
     if method == "random":
         rng = random.Random(20260821)
         rng.shuffle(candidates)
-    candidates = candidates[:max_candidates]
+    if explicit_candidates or method == 'random':
+        candidates = candidates[:max_candidates]
+    elif max_candidates < len(candidates):
+        # Cover the whole grid instead of taking a lexicographic prefix.
+        candidates = [candidates[round(i * (len(candidates)-1)/max(1,max_candidates-1))] for i in range(max_candidates)]
 
     rows: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -215,7 +222,11 @@ def optimize_policy_parameters(
         for seed in seeds:
             scenario_config = candidate.to_scenario_config(base_config)
             scenario = build_scenario_from_config(seed, population, scenario_config)
-            result = run_policy(candidate.base_policy_id, seed=seed, population=population, scenario=scenario)
+            from .models import MVP_POLICY_CONFIGS
+            policy = MVP_POLICY_CONFIGS[PolicyId(candidate.base_policy_id)].model_copy(update={
+                'budget_units': 150 + 40 * max(0,candidate.vehicle_multiplier-1) + 20*candidate.vulnerable_priority_weight
+                                + 20*candidate.communication_repair_strength + 30*max(0,candidate.bridge_closure_threshold-.5)})
+            result = run_policy(candidate.base_policy_id, seed=seed, population=population, scenario=scenario, policy_config=policy)
             metrics = result.metrics.model_dump(mode="json")
             scored = evaluate_reward(metrics)
             run_metrics.append(metrics)
@@ -241,6 +252,8 @@ def optimize_policy_parameters(
         "seeds": seeds,
         "mdp": default_mdp_definition().to_dict(),
         "best": rows[0] if rows else None,
+        "feasible": bool(rows and not rows[0]['violations']),
+        "recommendation_status": 'feasible' if rows and not rows[0]['violations'] else 'no_feasible_candidate',
         "candidates": rows,
         "note": "All candidate scores come from actual HongCe simulation runs.",
     }
@@ -269,7 +282,8 @@ def contextual_bandit_recommendation(
             population=population,
             method="grid",
             max_candidates=1,
-            scenario_overrides=candidate.to_scenario_config(base),
+            scenario_overrides=base,
+            explicit_candidates=[candidate],
         )
         best = optimized["best"]
         results.append(
@@ -288,6 +302,8 @@ def contextual_bandit_recommendation(
         "context": context,
         "arms": results,
         "recommended": results[0],
+        "feasible": not bool(results[0]["constraints"]),
+        "implementation": "simulation_arm_comparison_no_online_learning",
         "safety_note": "Bandit arms are ranked only after hard-constraint penalties are applied.",
     }
 
@@ -309,31 +325,12 @@ def candidate_grid(base_config: dict[str, Any]) -> Iterable[PolicyParameterCandi
         comms_strengths,
     ):
         warning, order, vehicles, priority, bridge, comms = values
-        if warning <= order:
+        if warning >= order:
             yield PolicyParameterCandidate(warning, order, vehicles, priority, bridge, comms)
 
 
 def build_scenario_from_config(seed: int, population: int, config: dict[str, Any]) -> SyntheticScenario:
-    scenario = generate_qingyuan(seed=seed, population=population)
-    scenario.hazard = HazardConfig(
-        timestep_minutes=int(config["timestep_minutes"]),
-        start_minute=0,
-        end_minute=max(240, int(config["danger_arrival_minute"]) + 60),
-        warning_minute=int(config["warning_minute"]),
-        evacuation_order_minute=int(config["evacuation_order_minute"]),
-        bridge_closure_minute=int(config["bridge_closure_minute"]),
-        danger_arrival_minute=int(config["danger_arrival_minute"]),
-        communication_failure_minute=int(config["communication_failure_minute"]),
-        communication_failure_rate=float(config["communication_failure_rate"]),
-    )
-    scenario.resources = replace(
-        ResourceProfile(),
-        vehicles=int(config["vehicles"]),
-        care_workers=int(config["care_workers"]),
-        stretchers=int(config["stretchers"]),
-        shelter_beds=int(config["shelter_beds"]),
-    )
-    return scenario
+    return build_scenario(seed, population, normalize_scenario_config(config))
 
 
 def aggregate_metrics(rows: list[dict[str, Any]]) -> dict[str, float]:
@@ -344,11 +341,11 @@ def aggregate_metrics(rows: list[dict[str, Any]]) -> dict[str, float]:
         "response_closure_rate",
         "missed_critical_action_rate",
         "group_safety_gap",
-        "trust_delta",
+        "policy_cost",
         "resource_queue_minutes_mean",
     ]
     return {
-        name: round(mean(float(row.get(name, 0.0)) for row in rows), 6)
+        name: round(mean(float(row.get(name) or 0.0) for row in rows), 6)
         for name in metric_names
     }
 
