@@ -64,15 +64,18 @@ def default_transport(config):
         left -= beds
         normalized.append({**s,'capacity':beds,'medical_slots':min(beds,s.get('medical_slots',s.get('care_capacity',30)))})
     routes = [dict(r) for r in config.get('routes', [])]
+    destination_ids=[s['id'] for s in normalized]
+    primary='school_shelter' if 'school_shelter' in destination_ids else destination_ids[0]
+    alternate='gym_shelter' if 'gym_shelter' in destination_ids else next((s for s in destination_ids if s!=primary),None)
     defaults = {'nursing_home':26,'county_hospital':18,'north_valley':33,'south_valley':16,'qingyuan_town':17}
     for origin, travel in defaults.items():
         if not any(r['origin_id']==origin for r in routes):
-            routes.append({'id':f'route-{origin}-school_shelter','origin_id':origin,
-                'shelter_id':'school_shelter','travel_minutes':travel,
+            routes.append({'id':f'route-{origin}-{primary}','origin_id':origin,
+                'shelter_id':primary,'travel_minutes':travel,
                 'bridge_dependency':['bridge_east'] if origin=='nursing_home' else []})
         # Explicit synthetic detour to another center (not an inferred real road).
-        if not any(r['origin_id']==origin and r.get('shelter_id')=='gym_shelter' for r in routes):
-            routes.append({'id':f'detour-{origin}-gym','origin_id':origin,'shelter_id':'gym_shelter',
+        if alternate and not any(r['origin_id']==origin and r.get('shelter_id')==alternate for r in routes):
+            routes.append({'id':f'detour-{origin}-gym' if alternate=='gym_shelter' else f'detour-{origin}-{alternate}','origin_id':origin,'shelter_id':alternate,
                 'travel_minutes':travel+18,'bridge_dependency':[], 'synthetic_detour':True})
     for r in routes:
         r.setdefault('shelter_id','school_shelter')
@@ -84,6 +87,9 @@ def default_transport(config):
             [config['danger_arrival_minute']+60,config['flood_peak_m']*.65]]
             if r.get('crosses_high_risk') or r.get('bridge_dependency') else [])
     return {'routes':routes,'shelters':normalized,'loading_minutes':config['loading_minutes'],
+            'dispatch_model':config.get('dispatch_model','positioned_fleet'),
+            'dispatch_mode':config.get('dispatch_mode','policy_priority'),
+            'fleet_base_id':config.get('fleet_base_id','school_shelter'),
             'unloading_minutes':5,'aging_minutes':config['queue_aging_minutes'],
             'hydrology':'prescribed_depth_curves_not_hydrodynamics'}
 

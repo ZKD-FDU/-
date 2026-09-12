@@ -21,7 +21,7 @@ export function createWorkbench(ctx) {
     const variants = Object.fromEntries((exp?.variants || []).map(v=>[v.id,v]));
     const number = state.experimentRuns || 3;
     return `<div class="view lab-view"><section class="lab-heading"><div><span class="lab-kicker">POLICY LAB</span><h2>同一情景，看清每项措施的作用</h2><p>使用当前情景配置，比较按时转移、群体差距和资源投入。</p></div>${stamp()}</section>
-      <section class="lab-controls"><label>实验设计<select id="experiment-kind">${option('baseline','S0 / S3 / S5 政策对照',state.experimentKind || 'baseline')}${option('abc','A / B / C 机制实验',state.experimentKind || 'baseline')}${option('sensitivity','运输假设敏感性',state.experimentKind || 'baseline')}</select></label>
+      <section class="lab-controls"><label>实验设计<select id="experiment-kind">${option('baseline','S0 / S3 / S5 政策对照',state.experimentKind || 'baseline')}${option('abc','A / B / C 机制实验',state.experimentKind || 'baseline')}${option('sensitivity','运输机制与公平调度',state.experimentKind || 'baseline')}</select></label>
       <label>每方案重复次数<select id="experiment-runs">${option(3,'3 次 · 快速演示',number)}${option(50,'50 次 · 验证实验',number)}</select></label>
       <button class="primary" id="run-experiment" ${state.busy?'disabled':''}>${state.busy?'实验运行中…':'运行当前情景实验'}</button><button id="load-validation">查看本轮验证成果</button><button id="export-evidence" ${!exp?'disabled':''}>导出实验数据</button></section>
       ${state.validationStored?'<p class="lab-footnote">当前展示已完成的本轮验证成果；下方记录的是该实验的实际配置。点击“运行当前情景实验”可使用编辑器中的新配置重新计算。</p>':''}
@@ -31,7 +31,7 @@ export function createWorkbench(ctx) {
       ${rows.length?`<section class="lab-chart"><div class="lab-section-title"><h3>${esc(exp.title || '政策对照结果')}</h3><span>${(exp.seeds?.length||0)>=50?'验证实验':'快速演示 · 尚不足 50 个种子'}</span></div>
       ${rows.map(([id,m])=>`<div class="lab-bar-row"><div><strong>${esc(variants[id]?.name || id)}</strong><small>${esc(id)}</small></div><div class="lab-bar-track"><i style="width:${Math.max(0,Math.min(100,m.safe_before_danger_rate.mean*100))}%"></i></div><b>${pct(m.safe_before_danger_rate.mean)}</b></div>`).join('')}
       <p class="lab-footnote">条形表示应转人群按时安全转移率。以下 CI95 是均值置信区间；P05–P95 表示模拟结果分布。</p></section>
-      <section class="lab-table-wrap"><table class="lab-table"><thead><tr><th>方案</th><th>脆弱群体按时转移</th><th>普通群体按时转移</th><th>均值 CI95</th><th>安全人数 / 应转人数</th><th>群体差距</th><th>预算单位</th><th>相对基线变化</th></tr></thead><tbody>${rows.map(([id,m])=>{
+      <section class="lab-table-wrap"><table class="lab-table"><thead><tr><th>方案</th><th>脆弱群体按时转移</th><th>普通群体按时转移</th><th>脆弱群体 CI95</th><th>安全人数 / 应转人数</th><th>群体差距</th><th>预算单位</th><th>相对基线变化</th></tr></thead><tbody>${rows.map(([id,m])=>{
         const v=m.vulnerable_safe_before_danger_rate;const delta=exp.paired_differences?.[id]?.safe_before_danger_rate;
         return `<tr><td><strong>${esc(variants[id]?.name || id)}</strong><small>${esc((variants[id]?.changed_fields || []).join(' · '))}</small></td><td>${pct(v?.mean)}</td><td>${pct(m.general_safe_before_danger_rate?.mean)}</td><td>${v?.ci95_low==null?'样本不足':`${pct(v.ci95_low)} – ${pct(v.ci95_high)}`}</td><td>${num(m.safe_count?.mean)} / ${num(m.target_count?.mean)}</td><td>${gap(m.group_safety_gap?.mean)}</td><td>${num(m.policy_cost?.mean)}</td><td class="${(delta?.mean||0)<0?'lab-negative':'lab-positive'}">${gap(delta?.mean)}</td></tr>`;
       }).join('')}</tbody></table></section><p class="lab-footnote">预算为可审计的合成单位，不代表实际采购价格。总体改善不等于每个群体都受益；负向变化完整保留。</p>`:empty('准备一次可复现的政策对照','先调整情景，再运行实验。结果会保留场景、种子、政策措施和分组分母。')}
@@ -61,7 +61,7 @@ export function createWorkbench(ctx) {
       <section class="lab-events">${events.map(eventCard).join('')||'<p>当前时刻尚无事件。</p>'}</section></div>`;
   }
   function eventCard(e) {
-    const titles={'warning received':'收到预警','vehicle departed':'车辆出发','person sheltered':'到达安置点','vehicle returned':'车辆返程完成',
+    const titles={'warning received':'收到预警','vehicle assigned':'派车前往接人','vehicle available at shelter':'卸载完成，可再调度','vehicle departed':'载客出发','person sheltered':'到达安置点','vehicle returned':'车辆返程完成',
       'evacuation task created':'生成转移任务','evacuation order issued':'下达转移命令','official warning issued':'发布预警',
       'bridge_east closed':'桥梁封闭','communications degraded':'通信失效','prepare_transfer':'机构准备转移',
       'wait_authorization':'机构等待授权','request_dispatch':'机构请求派车','confirmation workers assigned':'分配人工确认任务',
@@ -72,7 +72,7 @@ export function createWorkbench(ctx) {
   function explanation() {
     const a=state.trace?.agent;
     if (!state.run) return empty('追溯每个人的行动依据','先运行仿真，或从确认台点击一个对象。');
-    const timelineFields=[['contact_minute','收到信息'],['acknowledged_minute','人工确认'],['confirmed_minute','同意转移'],['transit_minute','车辆出发'],['sheltered_minute','实际安置']];
+    const timelineFields=[['contact_minute','收到信息'],['acknowledged_minute','人工确认'],['confirmed_minute','同意转移'],['dispatch_minute','派车接人'],['boarding_minute','车辆到位'],['transit_minute','载客出发'],['sheltered_minute','实际安置']];
     const saved=Object.values(state.savedRuns||{}).filter(r=>r.scenario_hash===state.run.scenario_hash);
     return `<div class="view lab-view"><section class="lab-heading"><div><span class="lab-kicker">INDIVIDUAL TRACE</span><h2>${esc(a?.id||'选择对象')} · ${esc(places[a?.location_id]||'个体决策与行动')}</h2><p>可见信息、行为因素与运输事件使用同一份运行记录。</p></div>${stamp()}</section>
       <section class="lab-controls"><label>对象编号<input id="trace-person-id" value="${esc(a?.id||'')}" placeholder="输入完整对象编号"></label><button id="load-person-trace">查看对象</button><span>${esc(a?.reason||'')}</span></section>

@@ -5,7 +5,7 @@ import json
 import csv
 from pathlib import Path
 from time import perf_counter
-from hongce.evaluation import run_policy_batch, run_named_experiments, write_json
+from hongce.evaluation import run_policy_batch, run_named_experiments, write_json, run_fleet_comparison
 from hongce.engine import RULE_VERSION
 
 def compact(payload):
@@ -18,9 +18,9 @@ def main():
     parser.add_argument('--seeds',type=int,default=50)
     parser.add_argument('--baseline-population',type=int,default=2000)
     parser.add_argument('--mechanism-population',type=int,default=500)
-    parser.add_argument('--output',default='data/validation/competition_v3.json')
+    parser.add_argument('--output',default='data/validation/competition_v4.json')
     args=parser.parse_args()
-    seeds=list(range(202608060,202608060+args.seeds))
+    seeds=list(range(202609110,202609110+args.seeds))
     start=perf_counter()
     print('Running paired S0/S3/S5 baseline...',flush=True)
     baseline=run_policy_batch(seeds=seeds,population=args.baseline_population,output_dir='outputs/validation/baseline')
@@ -32,13 +32,15 @@ def main():
         print(f'Running stress scenario {name} after {perf_counter()-start:.1f}s...',flush=True)
         stresses[name]=compact(run_policy_batch(seeds=seeds,population=args.mechanism_population,
             output_dir=f'outputs/validation/{name}',scenario_config=overrides))
-    bundle={'code_version':RULE_VERSION,'seeds':seeds,'baseline':compact(baseline),
+    print('Running positioned fleet and fairness comparisons...',flush=True)
+    sensitivity=run_fleet_comparison(seeds=seeds,population=args.baseline_population)
+    bundle={'code_version':RULE_VERSION,'seeds':seeds,'baseline':compact(baseline),'sensitivity':compact(sensitivity),
             'mechanisms':compact(mechanisms),'stress_tests':stresses,
             'elapsed_seconds':round(perf_counter()-start,2),
             'scope':'Synthetic model verification, not historical calibration or evidence of real-world causal effects.',
-            'run_count':len(seeds)*(3+22+6)}
+            'run_count':len(seeds)*(3+22+6+6)}
     write_json(Path(args.output),bundle)
-    write_run_table(Path(args.output).with_name('competition_v3_runs.csv'))
+    write_run_table(Path(args.output).with_name(Path(args.output).stem+'_runs.csv'))
     print(json.dumps({'output':args.output,'run_count':bundle['run_count'],'seconds':bundle['elapsed_seconds']},ensure_ascii=False),flush=True)
 
 

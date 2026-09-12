@@ -93,7 +93,7 @@ const state = {
     metric_candidates: ""
   },
   editorSub: "params",
-  mapMode: "hydrology",
+  mapMode: "simulation",
   navCollapsed: readStoredFlag("hongce.navCollapsed", false),
   layers: { terrain: true, water: true, flood: true, routes: true, shelter: true },
   hudCollapsed: { left: false, right: false },
@@ -378,7 +378,7 @@ function setBusy(value, text) {
   state.busy = value;
   const run = $("#run");
   if (run) run.disabled = value;
-  document.querySelectorAll("#sand-run, #sand-preset, [data-sand-config], #seed, #population, #policy, #run-experiment, #run-optimization, #run-bandit, #experiment-kind, #experiment-runs, [data-run-policy]").forEach(el => el.disabled = value);
+  document.querySelectorAll("#sand-run, #sand-preset, #sand-dispatch, #sand-depot, [data-sand-config], #seed, #population, #policy, #run-experiment, #run-optimization, #run-bandit, #experiment-kind, #experiment-runs, [data-run-policy]").forEach(el => el.disabled = value);
   document.getElementById("notice").classList.toggle("is-busy", value);
   if (text) setNotice(text);
 }
@@ -617,6 +617,9 @@ function buildScenarioOverrides() {
     care_workers: Number(state.scenarioConfig.care_workers),
     stretchers: Number(state.scenarioConfig.stretchers),
     transport_mode: "network",
+    dispatch_model: "positioned_fleet",
+    dispatch_mode: state.scenarioConfig.dispatch_mode || 'policy_priority',
+    fleet_base_id: state.scenarioConfig.fleet_base_id || 'school_shelter',
     road_capacity: Number(state.scenarioConfig.road_capacity ?? 8),
     loading_minutes: Number(state.scenarioConfig.loading_minutes ?? 5),
     flood_peak_m: Number(state.scenarioConfig.flood_peak_m ?? .45),

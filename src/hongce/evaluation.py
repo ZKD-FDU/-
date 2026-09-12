@@ -130,6 +130,21 @@ def run_transport_sensitivity(seeds=None,population=500,output_dir='outputs/vali
     result['title']='运输假设敏感性 · 同人口同种子'
     return result
 
+def run_fleet_comparison(seeds=None,population=2000,output_dir='outputs/validation/fleet_v4',scenario_config=None):
+    policy=MVP_POLICY_CONFIGS[PolicyId.S5]
+    base=normalize_scenario_config(scenario_config)
+    base.update(dispatch_model='positioned_fleet',dispatch_mode='policy_priority')
+    variants=[Variant('reference','S5 / 实际位置车队',policy),
+        Variant('balanced','S5 / 群体覆盖均衡',policy,{'dispatch_mode':'balanced_coverage'},['dispatch_mode']),
+        Variant('legacy_corridor','旧走廊模型 / 结构对照',policy,{'dispatch_model':'corridor_v3'},['dispatch_model']),
+        Variant('southern_depot','南部体育馆集结',policy,{'fleet_base_id':'gym_shelter'},['fleet_base_id']),
+        Variant('road_capacity','走廊容量降至 2',policy,{'road_capacity':2},['road_capacity']),
+        Variant('zero_vehicles','零车辆负对照',policy,{'vehicles':0},['vehicles'])]
+    result=execute_variants(variants,seeds or list(range(202609110,202609160)),population,base,output_dir,'reference')
+    result['title']='车队机制与公平策略 / 同人口同种子'
+    return result
+
+
 def experiment_designs(base_config):
     s0, s5 = MVP_POLICY_CONFIGS[PolicyId.S0], MVP_POLICY_CONFIGS[PolicyId.S5]
     # Budget costs are declared synthetic intervention assumptions, not market prices.

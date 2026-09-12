@@ -4,6 +4,6 @@ from hongce.evaluation import run_transport_sensitivity, write_json
 
 if __name__=='__main__':
     result=run_transport_sensitivity()
-    write_json(Path('data/validation/sensitivity_v3.json'),result)
+    write_json(Path('data/validation/sensitivity_transport_v4.json'),result)
     for key,summary in result['summary'].items():
         print(key,summary['safe_before_danger_rate']['mean'],flush=True)
