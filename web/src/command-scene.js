@@ -13,7 +13,7 @@ export function createCommandScene() {
   const nearestRiver=(x,z)=>{let best={distance:Infinity,width:0,y:0};for(const p of riverSamples){const distance=Math.hypot(x-p.x,z-p.z);if(distance<best.distance)best={distance,width:p.width,y:p.y};}return best;};
   function naturalElevation(x,z){const r=nearestRiver(x,z),blend=Math.max(0,1-r.distance/(r.width+1.8));return base(x,z)+relief(x,z)*(1-blend)-blend*blend*1.6;}
   function elevationAt(x,z){let h=naturalElevation(x,z);for(const p of pads){const distance=Math.max(Math.abs(x-p.x)/3.1,Math.abs(z-p.z)/2.6),blend=Math.max(0,Math.min(1,(1.5-distance)*2));h=h*(1-blend)+p.y*blend;}return h;}
-  function roadHeight(x,z){const r=nearestRiver(x,z),ground=elevationAt(x,z)+.12;return r.distance<r.width+2.2?Math.max(ground,r.y+.4):ground;}
+  function roadHeight(x,z){const r=nearestRiver(x,z),ground=Math.max(elevationAt(x,z),elevationAt(x-.5,z),elevationAt(x+.5,z),elevationAt(x,z-.5),elevationAt(x,z+.5))+.12;return r.distance<r.width+2.2?Math.max(ground,r.y+.4):ground;}
   const mat=(color,roughness=.8)=>new THREE.MeshStandardMaterial({color,roughness,metalness:.06});
   function box(group,x,y,z,w,h,d,material){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);mesh.position.set(x,y+h/2,z);mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);return mesh;}
   function ribbon(points,width,height,material) {
@@ -31,6 +31,11 @@ export function createCommandScene() {
     const pts=coords.map(project),sample=[];
     for(let i=1;i<pts.length;i++){const a=pts[i-1],b=pts[i],n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/step));for(let j=0;j<n;j++)sample.push([a[0]+(b[0]-a[0])*j/n,a[1]+(b[1]-a[1])*j/n]);}
     if(pts.length)sample.push(pts.at(-1));return sample;
+  }
+  function roadSide(points,width,side){
+    const vertices=[],indices=[];
+    points.forEach((p,i)=>{const a=points[Math.max(0,i-1)],b=points[Math.min(points.length-1,i+1)],len=Math.hypot(b[0]-a[0],b[1]-a[1])||1,x=p[0]-(b[1]-a[1])/len*width*.5*side,z=p[1]+(b[0]-a[0])/len*width*.5*side,h=roadHeight(x,z)-.035,r=nearestRiver(x,z),bottom=r.distance<r.width*.85?h-.14:elevationAt(x,z);vertices.push(x,h,z,x,bottom,z);if(i<points.length-1){const k=i*2;indices.push(k,k+1,k+2,k+1,k+3,k+2);}});
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setIndex(indices);geometry.computeVertexNormals();const material=mat(0x4a5d63);material.side=THREE.DoubleSide;const mesh=new THREE.Mesh(geometry,material);mesh.receiveShadow=true;return mesh;
   }
   function building(group,x,z,w,d,h,kind,seed) {
     const y=elevationAt(x,z)+.08,wall=mat(kind==='home'?0xb6bab2:0xb9ced2),roof=mat(kind==='home'?0x546a77:0x648993);
@@ -79,8 +84,12 @@ export function createCommandScene() {
           if(hospital){box(group,x-.9,ground+1.86,z-1.05,.15,.035,.52,mat(0xc77c65));box(group,x-.9,ground+1.87,z-1.05,.52,.035,.15,mat(0xc77c65));}
         }
       }
-      // A visible facility entrance connects to the route anchor.
-      group.add(ribbon([[x,z],[x,z+2.2],[x+3,z+2.2]],.24,(a,b)=>Math.max(ground+.12,elevationAt(a,b)+.06),mat(0x435968)));
+      // Campus access is a visual site connection, not a new simulated corridor.
+      const gate=[x,z+2.2],candidates=roads.flatMap(r=>r.points).filter(q=>Math.abs(q[0]-x)>3.1||Math.abs(q[1]-z)>2.6);
+      const connection=candidates.sort((a,b)=>Math.hypot(a[0]-gate[0],a[1]-gate[1])-Math.hypot(b[0]-gate[0],b[1]-gate[1]))[0];
+      const access=[[x,z],gate];if(connection){for(let i=1,n=Math.ceil(Math.hypot(connection[0]-gate[0],connection[1]-gate[1])/.25);i<=n;i++)access.push([gate[0]+(connection[0]-gate[0])*i/n,gate[1]+(connection[1]-gate[1])*i/n]);}
+      layers.routes.add(ribbon(access,.38,(a,b)=>roadHeight(a,b)+.025,mat(0x435968)));
+      for(const side of [-1,1])box(group,x+side*.4,ground+.09,z+1.8,.14,.35,.14,mat(0x829ba5));
     }
     group.userData.placeId=p.id;layers.terrain.add(group);
     const marker=new THREE.Mesh(new THREE.RingGeometry(.25,.33,32),new THREE.MeshBasicMaterial({color:p.id.includes('shelter')?0x5ce2bf:0x66d5ff,side:THREE.DoubleSide}));marker.rotation.x=-Math.PI/2;marker.position.set(x,elevationAt(x,z)+.17,z);layers.markers.add(marker);
@@ -121,6 +130,7 @@ export function createCommandScene() {
       if(r.coordinates.length<2)continue;
       const pts=samplePolyline(r.coordinates),width=r.synthetic_detour?.48:.72;
       layers.routes.add(ribbon(pts,width+.22,(x,z)=>roadHeight(x,z)-.035,mat(0x687a7d)));
+      for(const side of [-1,1])layers.routes.add(roadSide(pts,width+.22,side));
       const surface=mat(r.synthetic_detour?0x586d75:0x293d49);const mesh=ribbon(pts,width,roadHeight,surface);mesh.userData.routeId=r.id;layers.routes.add(mesh);roads.push({route:r,material:surface,points:pts});
       const stripeMat=new THREE.MeshBasicMaterial({color:0xd7cd92,side:THREE.DoubleSide});
       for(let i=0;i<pts.length-1;i+=5)layers.routes.add(ribbon(pts.slice(i,Math.min(i+3,pts.length)),.025,(x,z)=>roadHeight(x,z)+.018,stripeMat));
@@ -135,7 +145,7 @@ export function createCommandScene() {
     for(let x=-43;x<43;x+=1.2)for(let z=-30;z<30;z+=1.2){const noise=Math.sin(x*12.8+z*78.2)*43758.54,rand=noise-Math.floor(noise),noise2=Math.sin(z*8.4-x*9.2)*32768,xx=x+rand*.9,zz=z+(noise2-Math.floor(noise2))*.9,forest=Math.sin(xx*.17)*Math.cos(zz*.21)+relief(xx,zz)*.15;if(rand<.38||forest<.38||nearestRiver(xx,zz).distance<2||labels.some(p=>Math.hypot(p.anchor.x-xx,p.anchor.z-zz)<5))continue;if(roads.some(r=>r.points.some(p=>Math.hypot(p[0]-xx,p[1]-zz)<.85)))continue;positions.push([xx,zz,.55+rand*.8]);}
     const trees=new THREE.InstancedMesh(new THREE.SphereGeometry(.32,9,7),canopyMat,positions.length*3),trunks=new THREE.InstancedMesh(new THREE.CylinderGeometry(.045,.07,.65,6),trunkMat,positions.length);const dummy=new THREE.Object3D(),treeColor=new THREE.Color();
     positions.forEach(([x,z,h],i)=>{for(let j=0;j<3;j++){const angle=i*2.39+j*2.1;dummy.position.set(x+Math.cos(angle)*.15,elevationAt(x,z)+h*.48+.22+j*.13,z+Math.sin(angle)*.15);dummy.scale.set(h*.85,h*(.9+j*.08),h*.8);dummy.rotation.y=angle;dummy.updateMatrix();trees.setMatrixAt(i*3+j,dummy.matrix);treeColor.setHSL(.44+(i%5)*.006,.18+(i%3)*.025,.6+(i%7)*.02);trees.setColorAt(i*3+j,treeColor);}dummy.position.set(x,elevationAt(x,z)+.3,z);dummy.scale.set(1,1,1);dummy.updateMatrix();trunks.setMatrixAt(i,dummy.matrix);});trees.castShadow=true;layers.terrain.add(trees,trunks);
-    vehicles=[];for(let v=0;v<(m.run?.resource_audit.vehicles||0);v++){const car=new THREE.Group();box(car,0,0,0,.5,.24,.24,mat(0xe5eced));box(car,.08,.24,0,.22,.1,.21,mat(0x317199));for(const x of [-.15,.16])for(const z of [-.14,.14]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.04,8),mat(0x15212d));wheel.rotation.x=Math.PI/2;wheel.position.set(x,.045,z);car.add(wheel);}layers.vehicles.add(car);vehicles.push(car);}
+    vehicles=[];for(let v=0;v<(m.run?.resource_audit.vehicles||0);v++){const car=new THREE.Group(),body=mat(0xe5eced);car.userData.bodyMaterial=body;box(car,0,0,0,.5,.24,.24,body);box(car,.08,.24,0,.22,.1,.21,mat(0x317199));for(const x of [-.15,.16])for(const z of [-.14,.14]){const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.065,.065,.04,8),mat(0x15212d));wheel.rotation.x=Math.PI/2;wheel.position.set(x,.045,z);car.add(wheel);}layers.vehicles.add(car);vehicles.push(car);}
     if(cameraPose){root.rotation.y=cameraPose.y;camera.position.copy(cameraPose.position);cameraTarget.copy(cameraPose.target);camera.lookAt(cameraTarget);}
   }
   function along(coords,f){const pts=coords.map(project),lengths=pts.slice(1).map((p,i)=>Math.hypot(p[0]-pts[i][0],p[1]-pts[i][1]));let left=Math.max(0,Math.min(1,f))*lengths.reduce((a,b)=>a+b,0);for(let i=0;i<lengths.length;i++){if(left<=lengths[i]){const q=left/(lengths[i]||1);return {x:pts[i][0]+(pts[i+1][0]-pts[i][0])*q,z:pts[i][1]+(pts[i+1][1]-pts[i][1])*q,angle:Math.atan2(-(pts[i+1][1]-pts[i][1]),pts[i+1][0]-pts[i][0])};}left-=lengths[i];}return {x:pts.at(-1)[0],z:pts.at(-1)[1],angle:0};}
@@ -148,6 +158,7 @@ export function createCommandScene() {
       if(seg){const r=m.routes.find(r=>r.id===seg.route_id),f=(minute-seg.start_minute)/(seg.end_minute-seg.start_minute);if(!r)return;p=along(r.coordinates,seg.reverse?1-f:f);if(seg.reverse)p.angle+=Math.PI;}
       else{const at=m.points[active?(minute<t.departure_minute?t.origin_id:t.shelter_id):(t?.shelter_id||m.run.transport.fleet_base_id)];if(!at)return;const [x,z]=project([at.x,at.y]);p={x:x+(v%5)*.48-1,z:z+2.3+Math.floor(v/5)*.35,angle:0};}
       car.visible=true;car.position.set(p.x,seg?roadHeight(p.x,p.z)+.04:elevationAt(p.x,p.z)+.12,p.z);car.rotation.y=p.angle;car.userData.tripIndex=t?m.trips.indexOf(t):null;
+      car.userData.bodyMaterial.color.set(seg?.phase==='pickup'?0x6ab8e7:active?0xe2b776:0xe5eced);
     });
     for(const r of roads){const status=m.routeStatus(r.route);r.material.color.set(status==='封闭'||status==='积水超限'?0x934f43:status==='容量已满'?0x947548:r.route.synthetic_detour?0x586d75:0x293d49);}
     for(const wet of layers.flood.children)wet.visible=m.routeDepth(wet.userData.route)>0;
@@ -166,7 +177,7 @@ export function createCommandScene() {
     if(!renderer){renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
       renderer.domElement.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,moved:false};renderer.domElement.setPointerCapture(e.pointerId);});
       renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.moved||=Math.abs(dx)+Math.abs(dy)>2;const offset=camera.position.clone().sub(cameraTarget);offset.applyAxisAngle(new THREE.Vector3(0,1,0),-dx*.005);offset.y=Math.max(4,Math.min(220,offset.y+dy*.2));camera.position.copy(cameraTarget).add(offset);camera.lookAt(cameraTarget);drag.x=e.clientX;drag.y=e.clientY;});
-      renderer.domElement.addEventListener('pointerup',e=>{if(drag&&!drag.moved){const rect=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);const hits=ray.intersectObjects([layers.vehicles,layers.routes,layers.terrain],true);for(const hit of hits){let obj=hit.object;while(obj&&obj.userData.tripIndex==null&&!obj.userData.routeId&&!obj.userData.placeId)obj=obj.parent;if(obj){if(obj.userData.tripIndex!=null)select('trip',String(obj.userData.tripIndex));else if(obj.userData.routeId)select('route',obj.userData.routeId);else select('place',obj.userData.placeId);break;}}}drag=null;saveCamera();});
+      renderer.domElement.addEventListener('pointerup',e=>{if(drag&&!drag.moved){const rect=renderer.domElement.getBoundingClientRect(),ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);const hits=ray.intersectObjects([layers.vehicles,layers.routes,layers.terrain].filter(g=>g.visible),true);for(const hit of hits){let obj=hit.object;while(obj&&obj.userData.tripIndex==null&&!obj.userData.routeId&&!obj.userData.placeId)obj=obj.parent;if(obj){if(obj.userData.tripIndex!=null)select('trip',String(obj.userData.tripIndex));else if(obj.userData.routeId)select('route',obj.userData.routeId);else select('place',obj.userData.placeId);break;}}}drag=null;saveCamera();});
       renderer.domElement.addEventListener('pointercancel',()=>{drag=null;});
       renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();zoom(e.deltaY>0?1.06:.94);},{passive:false});
     }
