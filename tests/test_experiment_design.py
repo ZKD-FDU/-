@@ -43,6 +43,18 @@ class ExperimentDesignTest(unittest.TestCase):
         self.assertEqual({c.warning_lead_minutes for c in candidates},{90,120,150})
         self.assertTrue(all(c.warning_lead_minutes >= c.order_lead_minutes for c in candidates))
 
+    def test_api_fleet_comparison_preserves_budget_and_negative_control(self):
+        with tempfile.TemporaryDirectory() as out:
+            result=service.run_experiment({'experiment':'transport_sensitivity','population':120,
+                'seeds':[42], 'scenario_overrides':{'dispatch_mode':'balanced_coverage'},'output_dir':out})
+        data=result['comparison']
+        self.assertEqual(data['scenario_config']['dispatch_mode'],'policy_priority')
+        self.assertIn('balanced',data['summary'])
+        self.assertEqual(data['summary']['zero_vehicles']['safe_count']['mean'],0)
+        self.assertEqual(data['summary']['balanced']['policy_cost'],data['summary']['reference']['policy_cost'])
+        rows={r['variant_id']:r for r in data['runs']}
+        self.assertNotEqual(rows['balanced']['scenario_hash'],rows['reference']['scenario_hash'])
+
     def test_route_duration_reaches_real_arrival_times(self):
         config = normalize_scenario_config({'routes':[{'id':'south','origin_id':'south_valley','travel_minutes':11}]})
         result = run_policy('S5',seed=42,scenario=build_scenario(42,500,config))

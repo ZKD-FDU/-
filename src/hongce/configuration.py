@@ -25,6 +25,9 @@ DEFAULT_SCENARIO_CONFIG: dict[str, Any] = {
     "queue_aging_minutes": 45,
     "flood_peak_m": 0.45,
     "road_depth_limit_m": 0.30,
+    "dispatch_model": "positioned_fleet",
+    "dispatch_mode": "policy_priority",
+    "fleet_base_id": "school_shelter",
 }
 
 
@@ -51,6 +54,10 @@ def normalize_scenario_config(overrides: dict[str, Any] | None) -> dict[str, Any
         config[key] = int(float(config[key]))
     for key in {"vulnerable_ratio", "communication_failure_rate", "flood_peak_m", "road_depth_limit_m"}:
         config[key] = float(config[key])
+    shelters=config['shelters']
+    if not overrides.get('fleet_base_id') and isinstance(shelters,list) and shelters and all(isinstance(s,dict) and isinstance(s.get('id'),str) for s in shelters):
+        ids=[s['id'] for s in shelters]
+        config['fleet_base_id']='school_shelter' if 'school_shelter' in ids else ids[0]
     return config
 
 
@@ -60,6 +67,10 @@ def validate_scenario_config(config: dict[str, Any]) -> str | None:
         return "参数必须为有限数值"
     if config['transport_mode'] not in {'network','legacy'}:
         return '未知运输模式'
+    if config['dispatch_model'] not in {'positioned_fleet','corridor_v3'} or config['dispatch_mode'] not in {'policy_priority','balanced_coverage'}:
+        return '未知车队模型或调度策略'
+    if not isinstance(config['fleet_base_id'],str) or not config['fleet_base_id']:
+        return '车辆集结点编号必须为非空字符串'
     for k, low, high in [('road_capacity',1,300),('loading_minutes',0,30),('queue_aging_minutes',5,180),('flood_peak_m',0,5),('road_depth_limit_m',.05,1)]:
         if not low<=config[k]<=high:
             return f'{k} 必须在 {low} 到 {high} 之间'
@@ -122,6 +133,17 @@ def validate_scenario_config(config: dict[str, Any]) -> str | None:
                 return f'路线 {key} 必须为正数'
         if 'closed_minute' in route and (not isinstance(route['closed_minute'],(int,float)) or not math.isfinite(route['closed_minute']) or route['closed_minute']<0):
             return '道路封闭分钟必须非负且有限'
+    destinations=shelter_ids or {'school_shelter','gym_shelter'}
+    nodes = {'nursing_home','county_hospital','north_valley','south_valley','qingyuan_town'} | destinations
+    for route in config['routes']:
+        nodes.add(route['origin_id'])
+        nodes.add(route.get('shelter_id','school_shelter'))
+        if route.get('shelter_id','school_shelter') not in destinations:
+            return '路线目的地必须为已配置的安置点'
+        if 'bidirectional' in route and not isinstance(route['bidirectional'],bool):
+            return '道路双向标记必须为布尔值'
+    if config['fleet_base_id'] not in nodes:
+        return '车辆集结点必须为路网中的地点或安置点'
     return None
 
 

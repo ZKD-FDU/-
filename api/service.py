@@ -14,9 +14,9 @@ from hongce.calibration import (
     summarize_parameter_library,
 )
 from hongce.decision import contextual_bandit_recommendation, default_mdp_definition, optimize_policy_parameters
-from hongce.engine import run_policy
+from hongce.engine import run_policy, RULE_VERSION
 from hongce.experiments import run_named_experiments, run_policy_batch, write_explanation_pack
-from hongce.evaluation import run_transport_sensitivity
+from hongce.evaluation import run_fleet_comparison
 from hongce.models import PolicyId, stable_config_hash
 from hongce.scenario import HazardConfig, ResourceProfile, SyntheticScenario, generate_qingyuan
 from hongce.spatial import derive_scenario_overrides, load_spatial_package, spatial_context, summarize_spatial_package
@@ -35,6 +35,7 @@ def health() -> dict[str, Any]:
     parameter_quality = get_parameter_library().get("quality", {})
     return {
         "status": "ok",
+        "code_version": RULE_VERSION,
         "core": "RuleBasedAgentAdapter",
         "external_model_required": False,
         "data_labels": ["FACT", "SYNTHETIC", "SIMULATED"],
@@ -44,6 +45,11 @@ def health() -> dict[str, Any]:
 
 
 def latest_validation() -> dict[str, Any]:
+    current = Path('data/validation/competition_v4.json')
+    if current.exists():
+        bundle=json.loads(current.read_text(encoding='utf-8'))
+        if bundle.get('code_version')==RULE_VERSION:
+            return bundle
     path = Path('data/validation/competition_v3.json')
     if not path.exists():
         path = Path('data/validation/competition_v2.json')
@@ -200,12 +206,12 @@ def run_experiment(payload: dict[str, Any]) -> dict[str, Any]:
     if experiment == "abc":
         data = run_named_experiments(seeds=seeds, population=population, output_dir=output_dir, scenario_config=scenario_config)
     elif experiment == 'transport_sensitivity':
-        data = run_transport_sensitivity(seeds=seeds,population=population,output_dir=output_dir,scenario_config=scenario_config)
+        data = run_fleet_comparison(seeds=seeds,population=population,output_dir=output_dir,scenario_config=scenario_config)
     else:
         policies = payload.get("policies", [PolicyId.S0.value, PolicyId.S3.value, PolicyId.S5.value])
         data = run_policy_batch(policies=policies, seeds=seeds, population=population, output_dir=output_dir, scenario_config=scenario_config)
     data['case_context'] = validation.get('case_context')
-    experiment_id = 'exp-' + stable_config_hash({'experiment':experiment,'population':population,'seeds':seeds,
+    experiment_id = 'exp-' + stable_config_hash({'version':RULE_VERSION,'experiment':experiment,'population':population,'seeds':seeds,
         'scenario':scenario_config,'policies':payload.get('policies'), 'case_id':payload.get('case_id')})
     EXPERIMENT_CACHE[experiment_id] = data
     return {"experiment_id": experiment_id, "status": "succeeded", "comparison": data}

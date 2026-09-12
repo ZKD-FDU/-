@@ -14,7 +14,7 @@ from .models import (DecisionTrace, EvacuationStatus as Status, MetricRecord,
                      MessageReceipt, stable_config_hash)
 from .scenario import SyntheticScenario, generate_qingyuan
 
-RULE_VERSION = "hongce-network-kernel-v3"
+RULE_VERSION = "hongce-positioned-kernel-v4"
 
 def draw(seed: int, *keys: Any) -> float:
     """Common random numbers keyed by person/event, never policy or loop order."""
@@ -40,6 +40,8 @@ class MutablePerson:
     neighbor_action_rate: float = 0.0
     route_id: str | None = None
     shelter_id: str | None = None
+    dispatch_minute: int | None = None
+    boarding_minute: int | None = None
 
 @dataclass
 class RunResult:
@@ -87,6 +89,8 @@ class Trip:
     arrived: bool = False
     route_id: str | None = None
     return_route_id: str | None = None
+    release_message: str = 'vehicle returned'
+    destination: str | None = None
 
 @dataclass
 class ResourceState:
@@ -110,6 +114,12 @@ class ResourceState:
 
     def advance(self, minute: int, events: list[dict[str, Any]]) -> None:
         for trip in self.trips:
+            if not trip.arrived:
+                for person in trip.people:
+                    if person.transit_minute is not None and minute >= person.transit_minute:
+                        person.status,person.reason=Status.IN_TRANSIT,'车辆转运中'
+                    elif person.boarding_minute is not None and minute>=person.boarding_minute:
+                        person.reason='车辆到达接人地点，正在装载'
             if not trip.arrived and minute >= trip.arrival:
                 trip.arrived = True
                 for person in trip.people:
@@ -119,7 +129,7 @@ class ResourceState:
                     events.append(event(trip.arrival, "arrival", "person sheltered",
                                         {"person": person.base.id, "vehicle": trip.vehicle, "route_id": person.route_id}))
             if minute == trip.release:
-                events.append(event(minute, "resource", "vehicle returned", {"vehicle": trip.vehicle}))
+                events.append(event(minute, "resource", trip.release_message, {"vehicle": trip.vehicle,'location_id':trip.destination}))
         self.trips = [trip for trip in self.trips if trip.release > minute]
 
 def event(minute: int, kind: str, message: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -152,7 +162,9 @@ def run_policy(policy_id: PolicyId | str, seed: int = 20260806, population: int 
                         model_versions={"agent_adapter": "RuleBasedAgentAdapter"}, status="running")
     resources = ResourceState.from_policy(scenario, policy)
     from .transport import TransportNetwork
-    network = TransportNetwork(scenario) if scenario.transport else None
+    from .fleet import PositionedFleet
+    network_class=PositionedFleet if scenario.transport.get('dispatch_model')=='positioned_fleet' else TransportNetwork
+    network = network_class(scenario) if scenario.transport else None
     events: list[dict[str, Any]] = []
     receipts: list[MessageReceipt] = []
     traces: list[DecisionTrace] = []
@@ -369,6 +381,7 @@ def serialize_person(p: MutablePerson) -> dict[str, Any]:
             "contact_minute": p.contact_minute, "confirmed_minute": p.confirmed_minute,
             "acknowledged_minute": p.acknowledged_minute, "waiting_minute": p.waiting_minute,
             "transit_minute": p.transit_minute, "sheltered_minute": p.sheltered_minute,
+            "dispatch_minute": p.dispatch_minute, "boarding_minute": p.boarding_minute,
             "scheduled_arrival_minute": p.scheduled_arrival_minute, "route_id": p.route_id,
             "shelter_id": p.shelter_id,
             "harm_risk": p.harm_risk, "resource_wait_minutes": p.assigned_resource_wait,

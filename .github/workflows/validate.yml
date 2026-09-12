@@ -20,4 +20,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --check web/src/app.js && node --check web/src/workbench.js && node --check web/src/sandbox.js
+      - run: node --check web/src/app.js && node --check web/src/workbench.js && node --check web/src/sandbox.js && node --check web/src/command-scene.js

@@ -2,14 +2,14 @@
 
 洪策：基于真实灾害事故调查报告训练素材的极端事件人员转移与协同治理多智能体政策推演系统。
 
-本轮升级为 **v3 合成情景沙盘**：定时到达与资源守恒、延迟关系传播和机构授权、道路积水与并发容量、备用路线、分安置点接收能力、事件驱动的车辆回放，以及同种子政策实验。前端主沙盘不依赖外部地图或 Three.js CDN。
+本轮升级为 **v4 三维政策沙盘**：保留初步修改版本的深蓝指挥舱、原导航和数据仪表盘，在原 Three.js 基础上修复标签遮挡，补充河谷、河床水面、实体道路桥梁和分类建筑；支持设施定位与分段行程检查。车辆从实际集结位置出发，沿路空驶接人、装载转运，在目的地卸载后继续调度。道路双向共享分时容量，群体覆盖均衡可作为对照策略。
 
-- [模型依据、公式与边界](docs/model-v3.md)
-- [本轮验证结果](docs/validation-v3.md)
-- [1,550 次标准实验汇总](data/validation/competition_v3.json) / [逐次记录 CSV](data/validation/competition_v3_runs.csv)
-- [300 次运输敏感性实验及逐种子记录](data/validation/sensitivity_v3.json)
+- [模型机制、同类开源项目参考与策划书完成度](docs/model-v4.md)
+- [本轮验证结果](docs/validation-v4.md)
+- [1,850 次 v4 实验汇总](data/validation/competition_v4.json) / [逐次 CSV](data/validation/competition_v4_runs.csv)
+- [v3 历史档案](docs/validation-v3.md)
 
-当前尚未使用实测洪水或独立演练数据完成校准。v2 结果仅为修正阶段档案，不能与 v3 混算。候选参数搜索不是已训练的强化学习策略，综合方案不保证在所有情景中最优。
+本项目仍为合成情景研究原型，未以实测洪水或独立演练数据完成校准。地形与街区制图不代表实景数字孪生。各版本结果分别保存，不能混算；综合方案不保证最优，策略搜索不等于已训练强化学习。
 
 ## Local Commands
 
@@ -125,16 +125,17 @@ See `docs/qgis_pyqgis_integration.md` and `docs/qgis_spatial_data_standard.md`.
 - `scripts/build_mem_parameter_library.py`: rebuilds the parameter library from processed cases.
 - `scripts/qgis_build_spatial_package.py`: QGIS/PyQGIS spatial package builder.
 - `api/`: service, optional FastAPI app, no-dependency HTTP server.
-- `web/`: zero-dependency browser workbench.
+- `web/`: browser workbench without a build step; Three.js 0.160.0 is bundled locally with its MIT license in `web/vendor/`, so rendering does not require an external CDN.
 - `docs/`: architecture, technical document, model/data cards, validation report, demo script, decision/RL design, calibration and QGIS data standards.
 
-## Reproduce v3 evidence
+## Reproduce v4 evidence
 
 ```bash
 PYTHONPATH=src python scripts/validate_competition.py
-PYTHONPATH=src python scripts/validate_sensitivity.py
 ```
 
 Windows PowerShell: first run `$env:PYTHONPATH="src"`, then use the same `python` commands without the `PYTHONPATH=src` prefix.
 
 Open `http://127.0.0.1:5173/?sandbox=1` for an automatically computed 500-person preview, or `http://127.0.0.1:5173/?review=1` for the completed experiment bundle. In the sandbox, select a place/road/vehicle, replay time, change a pressure scenario, and apply parameters to rerun. Changed inputs do not relabel a previous run as a new result.
+
+The v4 bundle uses 50 paired seeds (202609110–202609159): 150 policy baselines, 1,100 A/B/C mechanism runs, 300 stress runs, and 300 fleet/fairness comparisons. Baseline and fleet comparisons use 2,000 people; mechanisms and stresses use 500. Earlier version archives are not overwritten.
